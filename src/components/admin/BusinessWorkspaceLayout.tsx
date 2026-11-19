@@ -15,9 +15,11 @@ import {
   CreditCardIcon,
   Analytics01Icon,
   Settings01Icon,
+  PrinterIcon,
   Logout01Icon,
   Menu01Icon,
   ArrowLeft01Icon,
+  ArrowRight01Icon,
   InstagramIcon,
   Image01Icon,
 } from "@hugeicons/core-free-icons";
@@ -78,16 +80,6 @@ export function BusinessWorkspaceLayout({
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-
-  const userEmail = user?.email || "admin@printstudio.ae";
-  const userName = user?.full_name || "Studio Manager";
-  const userRole = user?.role || "ADMIN";
-  const userInitials = (userName || "SM")
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .substring(0, 2);
 
   async function handleLogout() {
     setIsLoggingOut(true);
@@ -177,25 +169,21 @@ export function BusinessWorkspaceLayout({
             {renderNavLinks()}
           </nav>
 
-          {/* User Profile Footer */}
-          <div className="bm-sidebar-footer">
-            <div className="bm-user-badge">
-              <div className="bm-user-avatar">{userInitials}</div>
-              <div className="bm-user-info">
-                <p className="bm-user-name">{userName}</p>
-                <p className="bm-user-email">{userEmail}</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              className="bm-logout-btn"
-              title="Sign Out of Console"
-              aria-label="Sign Out"
+          {/* Workspace Switcher Button at Bottom of Sidebar */}
+          <div className="bm-sidebar-bottom">
+            <Link
+              href="/admin/production"
+              className="bm-workspace-switch-btn"
+              title="Switch to Bambu 3D Manufacturing Workspace"
             >
-              <HugeIcon icon={Logout01Icon} size={15} strokeWidth={2} />
-            </button>
+              <div className="bm-workspace-switch-left">
+                <div className="bm-workspace-switch-icon">
+                  <HugeIcon icon={PrinterIcon} size={15} strokeWidth={2} />
+                </div>
+                <span>Switch to Bambu Production</span>
+              </div>
+              <HugeIcon icon={ArrowRight01Icon} size={14} strokeWidth={2} />
+            </Link>
           </div>
         </aside>
 
@@ -245,21 +233,33 @@ export function BusinessWorkspaceLayout({
                 {renderNavLinks()}
               </nav>
 
-              <div className="bm-sidebar-footer" style={{ marginTop: "16px" }}>
-                <div className="bm-user-badge">
-                  <div className="bm-user-avatar">{userInitials}</div>
-                  <div className="bm-user-info">
-                    <p className="bm-user-name">{userName}</p>
-                    <p className="bm-user-email">{userEmail}</p>
+              <div className="bm-sidebar-bottom" style={{ marginTop: "16px" }}>
+                <Link
+                  href="/admin/production"
+                  className="bm-workspace-switch-btn"
+                  onClick={() => setMobileMenuOpen(false)}
+                  title="Switch to Bambu 3D Manufacturing Workspace"
+                >
+                  <div className="bm-workspace-switch-left">
+                    <div className="bm-workspace-switch-icon">
+                      <HugeIcon icon={PrinterIcon} size={15} strokeWidth={2} />
+                    </div>
+                    <span>Switch to Bambu Production</span>
                   </div>
-                </div>
+                  <HugeIcon icon={ArrowRight01Icon} size={14} strokeWidth={2} />
+                </Link>
+
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="bm-logout-btn"
+                  disabled={isLoggingOut}
+                  className="bm-header-logout-btn"
+                  style={{ width: "100%", justifyContent: "center", padding: "8px 12px", marginTop: "8px" }}
+                  title="Sign Out of Session"
                   aria-label="Sign Out"
                 >
-                  <HugeIcon icon={Logout01Icon} size={15} strokeWidth={2} />
+                  <HugeIcon icon={Logout01Icon} size={14} strokeWidth={2} />
+                  <span>{isLoggingOut ? "Signing out..." : "Sign Out"}</span>
                 </button>
               </div>
             </div>
@@ -287,6 +287,20 @@ export function BusinessWorkspaceLayout({
                   <span style={{ color: "var(--bm-text-primary)", fontWeight: 600 }}>{title}</span>
                 </div>
               </div>
+            </div>
+
+            <div className="bm-header-actions">
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="bm-header-logout-btn"
+                title="Sign Out of Session"
+                aria-label="Sign Out"
+              >
+                <HugeIcon icon={Logout01Icon} size={14} strokeWidth={2} />
+                <span>{isLoggingOut ? "Signing out..." : "Sign Out"}</span>
+              </button>
             </div>
           </header>
 

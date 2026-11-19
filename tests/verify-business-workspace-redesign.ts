@@ -120,33 +120,61 @@ runTest('Icon Rendering Runtime Invariant: HugeIconData renders to valid SVG wit
 // ----------------------------------------------------------------------------
 // Test 3: BusinessWorkspaceLayout & Clean Shell Invariants
 // ----------------------------------------------------------------------------
-runTest('Application Shell: Clean compact sidebar and minimal header without clutter', () => {
+runTest('Application Shell: Clean sidebar with workspace switcher, no profile footer, and preserved logout', () => {
   const layoutPath = path.join(ROOT_DIR, 'src/components/admin/BusinessWorkspaceLayout.tsx');
   assert.ok(fs.existsSync(layoutPath), 'BusinessWorkspaceLayout.tsx must exist');
   const content = fs.readFileSync(layoutPath, 'utf-8');
 
-  // Sidebar must be clean: NO switcher cards, active workspace pills, or manufacturing console section
+  // Sidebar must have NO admin profile footer
+  assert.ok(
+    !content.includes('bm-sidebar-footer'),
+    'Sidebar must not contain the admin profile footer'
+  );
+  assert.ok(
+    !content.includes('bm-user-badge'),
+    'Sidebar must not contain the user badge'
+  );
+  assert.ok(
+    !content.includes('bm-user-avatar'),
+    'Sidebar must not contain the user avatar'
+  );
+  assert.ok(
+    !content.includes('admin@printstudio.ae'),
+    'Sidebar must not display hardcoded/administrator account email'
+  );
+
+  // Sidebar must have the bottom workspace switch button to /admin/production
+  assert.ok(
+    content.includes('Switch to Bambu Production'),
+    'Sidebar must contain the Switch to Bambu Production button at the bottom'
+  );
+  assert.ok(
+    content.includes('/admin/production'),
+    'Sidebar switch button must link to /admin/production'
+  );
+  assert.ok(
+    content.includes('bm-workspace-switch-btn'),
+    'Sidebar switch button must use bm-workspace-switch-btn class'
+  );
+
+  // Sidebar must be clean: NO old switcher cards or manufacturing console section
   assert.ok(
     !content.includes('bm-switcher-card'),
-    'Sidebar must not contain the Active Workspace switcher card'
+    'Sidebar must not contain the legacy Active Workspace switcher card'
   );
   assert.ok(
     !content.includes('Manufacturing Console'),
-    'Sidebar must not contain the Manufacturing Console section'
-  );
-  assert.ok(
-    !content.includes('Switch to Bambu Production'),
-    'Sidebar must not contain the Switch to Bambu Production button'
+    'Sidebar must not contain the legacy Manufacturing Console section'
   );
 
-  // Header must be clean: NO redundant status pill, bridge buttons, or avatar cluster
+  // Logout access must be preserved without adding a profile panel
   assert.ok(
-    !content.includes('bm-header-actions'),
-    'Header must not contain the redundant header actions cluster'
+    content.includes('handleLogout'),
+    'Layout must preserve handleLogout authentication function'
   );
   assert.ok(
-    !content.includes('Bambu Cloud Active'),
-    'Header must not contain the Bambu Cloud telemetry pill'
+    content.includes('bm-header-logout-btn'),
+    'Layout must preserve header logout button'
   );
 
   // Must include all core navigation paths
