@@ -9,7 +9,6 @@ import {
   PackageIcon,
   Invoice01Icon,
   Mail01Icon,
-  Calculator01Icon,
   UserMultiple02Icon,
   CreditCardIcon,
   Analytics01Icon,
@@ -53,7 +52,6 @@ const CORE_NAV_ITEMS: NavItem[] = [
 
 const SALES_NAV_ITEMS: NavItem[] = [
   { path: "/admin/enquiries", label: "Enquiries", icon: Mail01Icon },
-  { path: "/admin/quotations", label: "Quotations", icon: Calculator01Icon },
   { path: "/admin/customers", label: "Customers", icon: UserMultiple02Icon },
 ];
 

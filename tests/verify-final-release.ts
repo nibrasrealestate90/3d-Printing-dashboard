@@ -260,7 +260,6 @@ async function runFinalReleaseVerification() {
       '/admin/orders',
       '/admin/products',
       '/admin/enquiries',
-      '/admin/quotations',
       '/admin/customers',
       '/admin/expenses',
       '/admin/reports',
