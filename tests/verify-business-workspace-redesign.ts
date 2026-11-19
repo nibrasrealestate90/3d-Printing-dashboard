@@ -118,17 +118,35 @@ runTest('Icon Rendering Runtime Invariant: HugeIconData renders to valid SVG wit
 });
 
 // ----------------------------------------------------------------------------
-// Test 3: BusinessWorkspaceLayout & Workspace Switcher
+// Test 3: BusinessWorkspaceLayout & Clean Shell Invariants
 // ----------------------------------------------------------------------------
-runTest('Application Shell: Navigation items and Bambu Production switcher link', () => {
+runTest('Application Shell: Clean compact sidebar and minimal header without clutter', () => {
   const layoutPath = path.join(ROOT_DIR, 'src/components/admin/BusinessWorkspaceLayout.tsx');
   assert.ok(fs.existsSync(layoutPath), 'BusinessWorkspaceLayout.tsx must exist');
   const content = fs.readFileSync(layoutPath, 'utf-8');
 
-  // Must have link to Bambu Production
+  // Sidebar must be clean: NO switcher cards, active workspace pills, or manufacturing console section
   assert.ok(
-    content.includes('/admin/production'),
-    'Layout must preserve workspace switcher to /admin/production'
+    !content.includes('bm-switcher-card'),
+    'Sidebar must not contain the Active Workspace switcher card'
+  );
+  assert.ok(
+    !content.includes('Manufacturing Console'),
+    'Sidebar must not contain the Manufacturing Console section'
+  );
+  assert.ok(
+    !content.includes('Switch to Bambu Production'),
+    'Sidebar must not contain the Switch to Bambu Production button'
+  );
+
+  // Header must be clean: NO redundant status pill, bridge buttons, or avatar cluster
+  assert.ok(
+    !content.includes('bm-header-actions'),
+    'Header must not contain the redundant header actions cluster'
+  );
+  assert.ok(
+    !content.includes('Bambu Cloud Active'),
+    'Header must not contain the Bambu Cloud telemetry pill'
   );
 
   // Must include all core navigation paths
@@ -169,8 +187,12 @@ runTest('Overview Page: Executive layout, operational metrics, and quick actions
     'Overview must verify server session'
   );
   assert.ok(
-    content.includes('bm-hero-banner'),
-    'Overview must contain executive hero banner'
+    !content.includes('bm-hero-banner'),
+    'Overview must not contain the decorative hero banner box'
+  );
+  assert.ok(
+    content.includes('bm-metrics-grid'),
+    'Overview must contain operational metrics grid at top of viewport'
   );
   assert.ok(
     content.includes('bm-dashboard-grid'),

@@ -112,17 +112,6 @@ export default async function AdminOverviewPage() {
     }
   }
 
-  // Determine greeting by Dubai local time (UTC+4)
-  const currentHourDubai = (new Date().getUTCHours() + 4) % 24;
-  let greeting = "Good morning";
-  if (currentHourDubai >= 12 && currentHourDubai < 17) {
-    greeting = "Good afternoon";
-  } else if (currentHourDubai >= 17) {
-    greeting = "Good evening";
-  }
-
-  const managerName = auth.user?.full_name || "Studio Manager";
-
   return (
     <BusinessWorkspaceLayout
       user={auth.user}
@@ -130,27 +119,6 @@ export default async function AdminOverviewPage() {
       title="Overview"
       breadcrumbs="Business Management"
     >
-      {/* Executive Welcome Banner (Finexy Aesthetics) */}
-      <section className="bm-hero-banner" aria-label="Executive Workspace Overview">
-        <div className="bm-hero-header-row">
-          <div className="bm-hero-badge">
-            <span className="bm-live-dot" />
-            <span>EXECUTIVE OVERVIEW • COMMERCIAL CONSOLE</span>
-          </div>
-          <span style={{ fontSize: "12px", color: "var(--bm-text-muted)", fontWeight: 500 }}>
-            {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-          </span>
-        </div>
-
-        <h1 className="bm-hero-title">
-          {greeting}, {managerName}
-        </h1>
-        <p className="bm-hero-desc">
-          Monitor your commercial operations, review inbound CAD quotations, manage storefront product
-          lines, and supervise your additive manufacturing throughput.
-        </p>
-      </section>
-
       {/* KPI Cards Grid */}
       <section className="bm-metrics-grid" aria-label="Key Operational Indicators">
         <MetricCard

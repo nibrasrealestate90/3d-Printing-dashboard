@@ -130,7 +130,7 @@
   border-radius: var(--bm-radius-panel);
   display: flex;
   flex-direction: column;
-  padding: 24px 16px;
+  padding: 20px 14px;
   box-sizing: border-box;
   box-shadow: var(--bm-shadow-card);
 }
@@ -146,8 +146,9 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 6px 18px 6px;
+  padding: 0 6px 16px 6px;
   border-bottom: 1px solid var(--bm-border-subtle);
+  margin-bottom: 8px;
   text-decoration: none;
 }
 
@@ -187,47 +188,7 @@
   font-weight: 500;
 }
 
-/* ==========================================================================
-   Workspace Switcher Pill (Bambu Lab Production <-> Commercial Business)
-   ========================================================================== */
-
-.bm-switcher-card {
-  margin: 16px 0;
-  padding: 12px;
-  background: var(--bm-surface-muted);
-  border: 1px solid var(--bm-border);
-  border-radius: var(--bm-radius-lg);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.bm-switcher-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--bm-text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 2px;
-}
-
-.bm-switcher-active-pill {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
-  background: var(--bm-surface);
-  border: 1px solid var(--bm-border);
-  border-radius: var(--bm-radius-pill);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--bm-text-primary);
-  box-shadow: 0 1px 3px rgba(32, 33, 31, 0.03);
-}
-
+/* Status Indicators */
 .bm-live-dot {
   width: 7px;
   height: 7px;
@@ -237,45 +198,19 @@
   flex-shrink: 0;
 }
 
-.bm-switcher-btn {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 8px 12px;
-  background: transparent;
-  border: 1px dashed var(--bm-border-strong);
-  border-radius: var(--bm-radius-pill);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--bm-text-secondary);
-  cursor: pointer;
-  text-decoration: none;
-  transition: all var(--bm-trans-fast);
-  box-sizing: border-box;
-}
-
-.bm-switcher-btn:hover {
-  background: var(--bm-surface);
-  color: var(--bm-accent);
-  border-color: var(--bm-accent);
-  border-style: solid;
-  transform: translateY(-1px);
-}
-
-.bm-switcher-btn:active {
-  transform: scale(0.97);
-}
-
 /* ==========================================================================
    Navigation Groups & Items
    ========================================================================== */
 
 .bm-nav-group {
-  margin-top: 10px;
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.bm-nav-group:first-child {
+  margin-top: 0;
 }
 
 .bm-nav-group-title {
@@ -284,7 +219,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--bm-text-muted);
-  padding: 10px 12px 4px 12px;
+  padding: 8px 12px 4px 12px;
 }
 
 /* Nav Item Pill */
@@ -292,7 +227,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 38px;
+  min-height: 36px;
   padding: 6px 12px;
   border-radius: var(--bm-radius-pill);
   color: var(--bm-text-secondary);
@@ -596,61 +531,6 @@
   .bm-content {
     padding: 28px 32px;
   }
-}
-
-/* ==========================================================================
-   Executive Greeting Hero Banner (Finexy Aesthetics)
-   ========================================================================== */
-
-.bm-hero-banner {
-  background: var(--bm-surface);
-  border: 1px solid var(--bm-border);
-  border-radius: var(--bm-radius-card);
-  padding: 24px 28px;
-  position: relative;
-  overflow: hidden;
-  box-shadow: var(--bm-shadow-card);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.bm-hero-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.bm-hero-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  background: var(--bm-accent-soft);
-  border: 1px solid rgba(240, 100, 61, 0.2);
-  border-radius: var(--bm-radius-pill);
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--bm-accent);
-  letter-spacing: 0.04em;
-}
-
-.bm-hero-title {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--bm-text-primary);
-  margin: 4px 0 2px 0;
-  letter-spacing: -0.02em;
-}
-
-.bm-hero-desc {
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--bm-text-secondary);
-  max-width: 680px;
-  margin: 0;
 }
 
 /* ==========================================================================

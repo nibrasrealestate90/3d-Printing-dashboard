@@ -15,12 +15,9 @@ import {
   CreditCardIcon,
   Analytics01Icon,
   Settings01Icon,
-  PrinterIcon,
   Logout01Icon,
   Menu01Icon,
   ArrowLeft01Icon,
-  ArrowRight01Icon,
-  Search01Icon,
   InstagramIcon,
   Image01Icon,
 } from "@hugeicons/core-free-icons";
@@ -81,7 +78,6 @@ export function BusinessWorkspaceLayout({
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [globalSearch, setGlobalSearch] = useState("");
 
   const userEmail = user?.email || "admin@printstudio.ae";
   const userName = user?.full_name || "Studio Manager";
@@ -157,45 +153,6 @@ export function BusinessWorkspaceLayout({
       {renderNavSection("Sales & Clients", SALES_NAV_ITEMS)}
       {renderNavSection("Store & Finance", FINANCE_STORE_NAV_ITEMS)}
       {renderNavSection("System", SYSTEM_NAV_ITEMS)}
-
-      {/* Production Bridge Link */}
-      <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid var(--bm-border-subtle)" }}>
-        <span className="bm-nav-group-title">Manufacturing Console</span>
-        <Link
-          href="/admin/production"
-          className="bm-nav-item"
-          style={{
-            background: "var(--bm-surface-muted)",
-            border: "1px solid var(--bm-border)",
-            fontWeight: 600,
-          }}
-          onClick={() => setMobileMenuOpen(false)}
-        >
-          <div
-            className="bm-nav-icon-wrap"
-            style={{
-              background: "var(--bm-pastel-coral)",
-              color: "var(--bm-accent)",
-            }}
-          >
-            <HugeIcon icon={PrinterIcon} size={15} strokeWidth={2} />
-          </div>
-          <span style={{ color: "var(--bm-text-primary)" }}>Bambu Production</span>
-          <span
-            style={{
-              marginLeft: "auto",
-              fontSize: "10px",
-              padding: "2px 7px",
-              borderRadius: "999px",
-              background: "var(--bm-success)",
-              color: "#FFFFFF",
-              fontWeight: 700,
-            }}
-          >
-            ONLINE
-          </span>
-        </Link>
-      </div>
     </div>
   );
 
@@ -214,26 +171,6 @@ export function BusinessWorkspaceLayout({
               <p>Commercial Workspace</p>
             </div>
           </Link>
-
-          {/* Seamless Dual Workspace Switcher */}
-          <div className="bm-switcher-card">
-            <div className="bm-switcher-label">
-              <span>Active Workspace</span>
-              <span style={{ fontSize: "9px", color: "var(--bm-success)", fontWeight: 700 }}>LIVE</span>
-            </div>
-            <div className="bm-switcher-active-pill">
-              <span className="bm-live-dot" />
-              <span>Business Management</span>
-            </div>
-            <Link
-              href="/admin/production"
-              className="bm-switcher-btn"
-              title="Switch to Bambu 3D Manufacturing Workspace"
-            >
-              <span>Switch to Bambu Production</span>
-              <HugeIcon icon={ArrowRight01Icon} size={13} strokeWidth={2} />
-            </Link>
-          </div>
 
           {/* Navigation Links */}
           <nav style={{ flex: 1, overflowY: "auto", paddingRight: "4px" }}>
@@ -271,7 +208,16 @@ export function BusinessWorkspaceLayout({
             aria-modal="true"
           >
             <div className="bm-mobile-drawer-panel" onClick={(e) => e.stopPropagation()}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingBottom: "16px",
+                  borderBottom: "1px solid var(--bm-border-subtle)",
+                  marginBottom: "12px",
+                }}
+              >
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                   <div className="bm-brand-logo" style={{ width: "32px", height: "32px" }}>
                     <Image src="/logo.svg" alt="Logo" width={20} height={20} />
@@ -293,26 +239,6 @@ export function BusinessWorkspaceLayout({
                 >
                   <HugeIcon icon={ArrowLeft01Icon} size={18} strokeWidth={2} />
                 </button>
-              </div>
-
-              {/* Workspace Switcher in Drawer */}
-              <div className="bm-switcher-card">
-                <div className="bm-switcher-label">
-                  <span>Current Workspace</span>
-                  <span style={{ fontSize: "9px", color: "var(--bm-success)", fontWeight: 700 }}>ACTIVE</span>
-                </div>
-                <div className="bm-switcher-active-pill">
-                  <span className="bm-live-dot" />
-                  <span>Business Management</span>
-                </div>
-                <Link
-                  href="/admin/production"
-                  className="bm-switcher-btn"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <span>Switch to Bambu Production</span>
-                  <HugeIcon icon={ArrowRight01Icon} size={13} strokeWidth={2} />
-                </Link>
               </div>
 
               <nav style={{ flex: 1, overflowY: "auto" }}>
@@ -361,37 +287,6 @@ export function BusinessWorkspaceLayout({
                   <span style={{ color: "var(--bm-text-primary)", fontWeight: 600 }}>{title}</span>
                 </div>
               </div>
-            </div>
-
-            <div className="bm-header-actions">
-              {/* Studio System Status Pill */}
-              <div className="bm-status-pill" title="Bambu Cloud MQTT telemetry connected & operational">
-                <span className="bm-live-dot" />
-                <span>Bambu Cloud Active</span>
-              </div>
-
-              {/* Direct Workspace Switcher Pill in Header */}
-              <Link
-                href="/admin/production"
-                className="bm-header-bridge-btn"
-                title="Open Bambu 3D Manufacturing Workspace"
-              >
-                <HugeIcon icon={PrinterIcon} size={14} strokeWidth={2} />
-                <span>Bambu Production</span>
-              </Link>
-
-              {/* User Avatar with Sign Out Quick Action */}
-              <button
-                type="button"
-                onClick={handleLogout}
-                disabled={isLoggingOut}
-                className="bm-user-avatar"
-                style={{ cursor: "pointer", border: "1px solid var(--bm-border-strong)" }}
-                title={`Signed in as ${userEmail} (${userRole}) • Click to Sign Out`}
-                aria-label="Sign Out"
-              >
-                {userInitials}
-              </button>
             </div>
           </header>
 
