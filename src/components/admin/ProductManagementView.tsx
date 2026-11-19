@@ -1,24 +1,24 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Image from "next/image";
+import React, { useState, useEffect, useRef } from "react";
 import {
   PackageIcon,
   Search01Icon,
-  PlusSignIcon,
   Edit01Icon,
-  CheckmarkCircle02Icon,
   CancelCircleIcon,
   ViewIcon,
   ViewOffIcon,
-  StarIcon,
-  ArrowUp01Icon,
-  ArrowDown01Icon,
   Delete01Icon,
   Image01Icon,
   Upload01Icon,
+  PrinterIcon,
+  CheckmarkCircle02Icon,
+  ArrowRight01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeIcon } from "@/components/hugeIcons";
+import { PageHeader } from "@/components/admin/ui/PageHeader";
+import { EmptyState } from "@/components/admin/ui/EmptyState";
+import { MediaLibraryView } from "@/components/admin/MediaLibraryView";
 
 interface ProductItem {
   id: string;
@@ -32,15 +32,12 @@ interface ProductItem {
   internalNotes?: string;
   imageUrl: string | null;
   images: string[];
-  material?: string;
-  dimensions?: string;
-  finish?: string;
-  colors?: string[];
-  supportsPersonalization: boolean;
-  isFeatured: boolean;
-  isBestSeller: boolean;
-  isAvailable: boolean;
   published: boolean;
+  isCommercial: boolean;
+  grams?: number;
+  minutes?: number;
+  unitCost?: number;
+  directPrice?: number;
   isBambuImport?: boolean;
   updatedAt: string;
 }
@@ -56,44 +53,43 @@ const CATEGORIES = [
 ];
 
 export function ProductManagementView() {
-  const [products, setProducts] = useState<ProductItem[]>([]);
+  const [allProducts, setAllProducts] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
 
-  // Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Import Modal State
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importSearchQuery, setImportSearchQuery] = useState("");
+  const [selectedForImport, setSelectedForImport] = useState<ProductItem | null>(null);
+
+  // Commercial Details Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Form Fields
+  // Form Fields (Strictly the 6 essential selling fields)
   const [formName, setFormName] = useState("");
-  const [formSku, setFormSku] = useState("");
-  const [formCategory, setFormCategory] = useState("Home Decor");
   const [formPrice, setFormPrice] = useState("");
   const [formDescription, setFormDescription] = useState("");
-  const [formMainImage, setFormMainImage] = useState("");
-  const [formGalleryImages, setFormGalleryImages] = useState<string[]>([]);
-  const [formMaterial, setFormMaterial] = useState("Matte Ivory PLA+");
-  const [formDimensions, setFormDimensions] = useState("18 x 14 x 23 cm");
-  const [formFinish, setFormFinish] = useState("0.16mm Layer Height, Smooth Satin Finish");
-  const [formColors, setFormColors] = useState("Warm Cream, Deep Navy, Vibrant Orange");
-  const [formPersonalizable, setFormPersonalizable] = useState(false);
-  const [formFeatured, setFormFeatured] = useState(false);
-  const [formBestseller, setFormBestseller] = useState(false);
+  const [formCategory, setFormCategory] = useState("Home Decor");
+  const [formImages, setFormImages] = useState<string[]>([]);
   const [formPublished, setFormPublished] = useState(false);
-  const [newGalleryUrl, setNewGalleryUrl] = useState("");
+
+  // Media Library Picker & Inline Upload State
+  const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function fetchProducts() {
     setLoading(true);
     try {
       const res = await fetch("/api/admin/products");
       const data = await res.json();
-      if (res.ok && data.products) {
-        setProducts(data.products);
+      if (res.ok && Array.isArray(data.products)) {
+        setAllProducts(data.products);
       }
     } catch {
       setErrorMessage("Failed to load products from server.");
@@ -106,57 +102,103 @@ export function ProductManagementView() {
     fetchProducts();
   }, []);
 
-  function openCreateModal() {
-    setEditingProduct(null);
-    setFormName("");
-    setFormSku(`PRN-${Math.floor(1000 + Math.random() * 9000)}`);
-    setFormCategory("Home Decor");
-    setFormPrice("49.00");
-    setFormDescription("");
-    setFormMainImage("");
-    setFormGalleryImages([]);
-    setFormMaterial("Matte Ivory PLA+");
-    setFormDimensions("15 x 12 x 18 cm");
-    setFormFinish("0.16mm Precision Satin");
-    setFormColors("Warm Cream, Deep Navy");
-    setFormPersonalizable(false);
-    setFormFeatured(false);
-    setFormBestseller(false);
-    setFormPublished(false);
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    setIsModalOpen(true);
+  // Commercial products are those configured for commercial sale
+  const commercialProducts = allProducts.filter((p) => p.isCommercial);
+
+  // Filtered commercial products for the main table
+  const filteredProducts = commercialProducts.filter((p) => {
+    const matchesSearch =
+      searchQuery === "" ||
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.category.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "published" && p.published) ||
+      (statusFilter === "draft" && !p.published);
+    return matchesSearch && matchesStatus;
+  });
+
+  // Manufacturing products available for import
+  const filteredManufacturingProducts = allProducts.filter((p) => {
+    if (!importSearchQuery.trim()) return true;
+    const q = importSearchQuery.toLowerCase();
+    const name = (p.internalName || p.name).toLowerCase();
+    const notes = (p.internalNotes || "").toLowerCase();
+    return name.includes(q) || notes.includes(q);
+  });
+
+  // --- Handlers: Import from Production ---
+  function openImportModal() {
+    setSelectedForImport(null);
+    setImportSearchQuery("");
+    setIsImportModalOpen(true);
   }
 
+  function handleContinueToSetup() {
+    if (!selectedForImport) return;
+    setIsImportModalOpen(false);
+
+    // Open commercial setup pre-filled with the manufacturing product's data
+    setEditingProduct(selectedForImport);
+    setFormName(selectedForImport.name || selectedForImport.internalName || "");
+    const initialPrice = selectedForImport.sellingPrice || selectedForImport.directPrice || 49.0;
+    setFormPrice(String(initialPrice.toFixed(2)));
+    setFormDescription(selectedForImport.description || "");
+    setFormCategory(selectedForImport.category && CATEGORIES.includes(selectedForImport.category) ? selectedForImport.category : "Home Decor");
+    
+    // Clean initial images (exclude base64 strings if raw Bambu thumbnail)
+    const initialImgs: string[] = [];
+    if (selectedForImport.imageUrl && !selectedForImport.imageUrl.startsWith("data:")) {
+      initialImgs.push(selectedForImport.imageUrl);
+    }
+    if (Array.isArray(selectedForImport.images)) {
+      for (const img of selectedForImport.images) {
+        if (img && !img.startsWith("data:") && !initialImgs.includes(img)) {
+          initialImgs.push(img);
+        }
+      }
+    }
+    setFormImages(initialImgs);
+    setFormPublished(Boolean(selectedForImport.published));
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setIsEditModalOpen(true);
+  }
+
+  // --- Handlers: Edit Commercial Product ---
   function openEditModal(prod: ProductItem) {
     setEditingProduct(prod);
     setFormName(prod.name);
-    setFormSku(prod.sku || "");
-    setFormCategory(prod.category || "Home Decor");
     setFormPrice(String(prod.sellingPrice || 0));
     setFormDescription(prod.description || "");
-    setFormMainImage(prod.imageUrl || "");
-    setFormGalleryImages(prod.images || (prod.imageUrl ? [prod.imageUrl] : []));
-    setFormMaterial(prod.material || "Matte Ivory PLA+");
-    setFormDimensions(prod.dimensions || "15 x 12 x 18 cm");
-    setFormFinish(prod.finish || "0.16mm Precision Satin");
-    setFormColors(Array.isArray(prod.colors) ? prod.colors.join(", ") : "");
-    setFormPersonalizable(Boolean(prod.supportsPersonalization));
-    setFormFeatured(Boolean(prod.isFeatured));
-    setFormBestseller(Boolean(prod.isBestSeller));
+    setFormCategory(prod.category || "Home Decor");
+    setFormImages(prod.images || (prod.imageUrl ? [prod.imageUrl] : []));
     setFormPublished(Boolean(prod.published));
     setErrorMessage(null);
     setSuccessMessage(null);
-    setIsModalOpen(true);
+    setIsEditModalOpen(true);
   }
 
+  // --- Handlers: 1-Click Publish Toggle ---
   async function handleTogglePublish(prod: ProductItem) {
     const nextState = !prod.published;
-    const confirmMsg = nextState
-      ? `Publish "${prod.name}" to the live public storefront?`
-      : `Unpublish "${prod.name}"? It will no longer be visible to website visitors.`;
 
-    if (!window.confirm(confirmMsg)) return;
+    // Publication Validation check:
+    if (nextState) {
+      const hasName = Boolean(prod.name && prod.name.trim());
+      const hasPrice = typeof prod.sellingPrice === "number" && prod.sellingPrice > 0;
+      const hasCategory = Boolean(prod.category && prod.category.trim());
+      const hasImage = Boolean(
+        prod.imageUrl || (Array.isArray(prod.images) && prod.images.length > 0)
+      );
+
+      if (!hasName || !hasPrice || !hasCategory || !hasImage) {
+        alert(
+          "Cannot publish incomplete product.\n\nPlease click Edit to ensure the product has:\n• Display Name\n• Selling Price (> 0 AED)\n• Category\n• At least one product image"
+        );
+        return;
+      }
+    }
 
     try {
       const res = await fetch(`/api/admin/products/${prod.id}/publish`, {
@@ -164,20 +206,24 @@ export function ProductManagementView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ published: nextState }),
       });
-      if (res.ok) {
-        setProducts((prev) =>
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setAllProducts((prev) =>
           prev.map((p) => (p.id === prod.id ? { ...p, published: nextState } : p))
         );
       } else {
-        alert("Failed to update product publish status.");
+        alert(data.message || "Failed to update product publication status.");
       }
     } catch {
       alert("Network error while updating publish status.");
     }
   }
 
+  // --- Handlers: Save Commercial Details ---
   async function handleSaveProduct(e: React.FormEvent) {
     e.preventDefault();
+    if (!editingProduct) return;
+
     setSaving(true);
     setErrorMessage(null);
 
@@ -189,34 +235,23 @@ export function ProductManagementView() {
     }
 
     if (!formName.trim()) {
-      setErrorMessage("Product name is required.");
+      setErrorMessage("Product display name is required.");
       setSaving(false);
       return;
     }
 
-    const colorsArray = formColors
-      .split(",")
-      .map((c) => c.trim())
-      .filter(Boolean);
-
     const payload = {
-      id: editingProduct?.id,
+      id: editingProduct.id,
       name: formName.trim(),
       publicName: formName.trim(),
-      sku: formSku.trim(),
-      category: formCategory,
       sellingPrice: priceNum,
       publicDescription: formDescription.trim(),
-      imageUrl: formMainImage.trim() || null,
-      images: formGalleryImages,
-      material: formMaterial.trim(),
-      dimensions: formDimensions.trim(),
-      finish: formFinish.trim(),
-      colors: colorsArray,
-      supportsPersonalization: formPersonalizable,
-      isFeatured: formFeatured,
-      isBestSeller: formBestseller,
+      category: formCategory,
+      publicCategory: formCategory,
+      imageUrl: formImages[0] || null,
+      images: formImages,
       published: formPublished,
+      isCommercial: true,
     };
 
     try {
@@ -227,11 +262,11 @@ export function ProductManagementView() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setSuccessMessage("Product saved successfully!");
+        setSuccessMessage("Product details saved successfully!");
         setTimeout(() => {
-          setIsModalOpen(false);
+          setIsEditModalOpen(false);
           fetchProducts();
-        }, 600);
+        }, 500);
       } else {
         setErrorMessage(data.message || "Failed to save product.");
       }
@@ -242,196 +277,171 @@ export function ProductManagementView() {
     }
   }
 
-  function addGalleryImage() {
-    if (!newGalleryUrl.trim()) return;
-    const url = newGalleryUrl.trim();
-    if (!formGalleryImages.includes(url)) {
-      setFormGalleryImages([...formGalleryImages, url]);
-      if (!formMainImage) {
-        setFormMainImage(url);
+  // --- Handlers: Media Management ---
+  function handleSelectFromMediaLibrary(url: string) {
+    if (!formImages.includes(url)) {
+      setFormImages((prev) => [...prev, url]);
+    }
+  }
+
+  function handleRemoveImage(index: number) {
+    setFormImages((prev) => prev.filter((_, idx) => idx !== index));
+  }
+
+  async function handleDirectFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    setErrorMessage(null);
+
+    try {
+      // 1. Request presigned upload URL
+      const presignRes = await fetch("/api/admin/website/media/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileSizeBytes: file.size,
+          mimeType: file.type || "image/jpeg",
+          category: "products",
+        }),
+      });
+
+      const presignData = await presignRes.json();
+      if (!presignRes.ok || !presignData.success) {
+        throw new Error(presignData.message || "Failed to authorize image upload.");
       }
+
+      // 2. Upload file directly if R2 is configured
+      if (presignData.storageConfigured && presignData.uploadUrl) {
+        const uploadRes = await fetch(presignData.uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": presignData.mimeType || file.type || "image/jpeg" },
+          body: file,
+        });
+        if (!uploadRes.ok) {
+          throw new Error("Failed to upload image file to storage.");
+        }
+      }
+
+      // 3. Register image in Media Library catalog
+      const regRes = await fetch("/api/admin/website/media/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileSizeBytes: file.size,
+          mimeType: file.type || "image/jpeg",
+          storageKey: presignData.storageKey,
+          publicUrl: presignData.publicUrl,
+        }),
+      });
+
+      const regData = await regRes.json();
+      if (regRes.ok && regData.success) {
+        handleSelectFromMediaLibrary(presignData.publicUrl);
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "Image upload failed.");
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
-    setNewGalleryUrl("");
   }
-
-  function removeGalleryImage(index: number) {
-    const updated = formGalleryImages.filter((_, idx) => idx !== index);
-    setFormGalleryImages(updated);
-    if (formMainImage === formGalleryImages[index]) {
-      setFormMainImage(updated[0] || "");
-    }
-  }
-
-  function moveGalleryImage(index: number, direction: "up" | "down") {
-    const targetIdx = direction === "up" ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= formGalleryImages.length) return;
-    const next = [...formGalleryImages];
-    const temp = next[index];
-    next[index] = next[targetIdx];
-    next[targetIdx] = temp;
-    setFormGalleryImages(next);
-  }
-
-  const filteredProducts = products.filter((p) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCat =
-      categoryFilter === "all" || p.category.toLowerCase() === categoryFilter.toLowerCase();
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "published" && p.published) ||
-      (statusFilter === "draft" && !p.published);
-    return matchesSearch && matchesCat && matchesStatus;
-  });
-
-  const publishedCount = products.filter((p) => p.published).length;
-  const featuredCount = products.filter((p) => p.isFeatured).length;
-  const bestSellerCount = products.filter((p) => p.isBestSeller).length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-      {/* Top Stats Cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: "16px",
-        }}
-      >
-        <div className="bm-metric-card" style={{ background: "white", padding: "16px 20px", borderRadius: "16px", border: "1px solid var(--bm-border-subtle)" }}>
-          <div style={{ fontSize: "12px", color: "var(--bm-text-muted)", fontWeight: 600 }}>Total Products</div>
-          <div style={{ fontSize: "24px", fontWeight: 700, color: "var(--bm-text-primary)", marginTop: "4px" }}>{products.length}</div>
-          <div style={{ fontSize: "11px", color: "var(--bm-text-secondary)", marginTop: "2px" }}>Manufacturing & Commercial</div>
-        </div>
-
-        <div className="bm-metric-card" style={{ background: "white", padding: "16px 20px", borderRadius: "16px", border: "1px solid var(--bm-border-subtle)" }}>
-          <div style={{ fontSize: "12px", color: "#065F46", fontWeight: 600 }}>Published on Storefront</div>
-          <div style={{ fontSize: "24px", fontWeight: 700, color: "#10B981", marginTop: "4px" }}>{publishedCount}</div>
-          <div style={{ fontSize: "11px", color: "var(--bm-text-secondary)", marginTop: "2px" }}>Active on printstudio.ae</div>
-        </div>
-
-        <div className="bm-metric-card" style={{ background: "white", padding: "16px 20px", borderRadius: "16px", border: "1px solid var(--bm-border-subtle)" }}>
-          <div style={{ fontSize: "12px", color: "#9A3412", fontWeight: 600 }}>Featured Products</div>
-          <div style={{ fontSize: "24px", fontWeight: 700, color: "#F45A00", marginTop: "4px" }}>{featuredCount}</div>
-          <div style={{ fontSize: "11px", color: "var(--bm-text-secondary)", marginTop: "2px" }}>Homepage Hero Section</div>
-        </div>
-
-        <div className="bm-metric-card" style={{ background: "white", padding: "16px 20px", borderRadius: "16px", border: "1px solid var(--bm-border-subtle)" }}>
-          <div style={{ fontSize: "12px", color: "#1E40AF", fontWeight: 600 }}>Bestsellers</div>
-          <div style={{ fontSize: "24px", fontWeight: 700, color: "#3B82F6", marginTop: "4px" }}>{bestSellerCount}</div>
-          <div style={{ fontSize: "11px", color: "var(--bm-text-secondary)", marginTop: "2px" }}>Store Bestseller Grid</div>
-        </div>
-      </div>
-
-      {/* Action Bar & Controls */}
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: "12px",
-          background: "white",
-          padding: "16px 20px",
-          borderRadius: "16px",
-          border: "1px solid var(--bm-border-subtle)",
-        }}
-      >
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px", flex: 1 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              background: "var(--bm-bg-subtle, #F8FAFC)",
-              padding: "8px 14px",
-              borderRadius: "10px",
-              border: "1px solid var(--bm-border-subtle)",
-              minWidth: "240px",
-            }}
+      {/* 1. Header with Title, Description, and Import Action */}
+      <PageHeader
+        title="Products"
+        description="Manage products displayed in your online store."
+        actions={
+          <button
+            onClick={openImportModal}
+            className="bm-btn bm-btn-primary"
+            style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}
           >
-            <HugeIcon icon={Search01Icon} size={15} color="var(--bm-text-muted)" />
-            <input
-              type="text"
-              placeholder="Search product name or SKU..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{
-                border: "none",
-                background: "transparent",
-                outline: "none",
-                fontSize: "13px",
-                width: "100%",
-                color: "var(--bm-text-primary)",
-              }}
-            />
-          </div>
+            <HugeIcon icon={PrinterIcon} size={16} strokeWidth={2} />
+            <span>Import from Production</span>
+          </button>
+        }
+      />
 
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            style={{
-              padding: "8px 12px",
-              borderRadius: "10px",
-              border: "1px solid var(--bm-border-subtle)",
-              fontSize: "13px",
-              background: "white",
-              color: "var(--bm-text-primary)",
-              cursor: "pointer",
-            }}
-          >
-            <option value="all">All Categories</option>
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-            style={{
-              padding: "8px 12px",
-              borderRadius: "10px",
-              border: "1px solid var(--bm-border-subtle)",
-              fontSize: "13px",
-              background: "white",
-              color: "var(--bm-text-primary)",
-              cursor: "pointer",
-            }}
-          >
-            <option value="all">All Statuses</option>
-            <option value="published">Published Only</option>
-            <option value="draft">Drafts Only</option>
-          </select>
-        </div>
-
-        <button
-          onClick={openCreateModal}
-          className="bm-btn-primary"
+      {/* 2. Search & Filter Bar */}
+      {commercialProducts.length > 0 && (
+        <div
           style={{
-            display: "inline-flex",
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "space-between",
             alignItems: "center",
-            gap: "8px",
-            padding: "10px 18px",
-            borderRadius: "12px",
-            background: "var(--bm-accent)",
-            color: "#FFFFFF",
-            fontWeight: 600,
-            fontSize: "13px",
-            border: "none",
-            cursor: "pointer",
+            gap: "12px",
+            background: "white",
+            padding: "14px 18px",
+            borderRadius: "14px",
+            border: "1px solid var(--bm-border-subtle)",
           }}
         >
-          <HugeIcon icon={PlusSignIcon} size={16} />
-          <span>New Commercial Product</span>
-        </button>
-      </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: "260px" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                background: "var(--bm-bg-subtle, #F8FAFC)",
+                padding: "8px 14px",
+                borderRadius: "10px",
+                border: "1px solid var(--bm-border-subtle)",
+                width: "100%",
+                maxWidth: "360px",
+              }}
+            >
+              <HugeIcon icon={Search01Icon} size={15} color="var(--bm-text-muted)" />
+              <input
+                type="text"
+                placeholder="Search products by name or category..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  outline: "none",
+                  fontSize: "13px",
+                  width: "100%",
+                  color: "var(--bm-text-primary)",
+                }}
+              />
+            </div>
+          </div>
 
-      {/* Product List Table */}
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              style={{
+                padding: "8px 14px",
+                borderRadius: "10px",
+                border: "1px solid var(--bm-border-subtle)",
+                fontSize: "13px",
+                background: "white",
+                color: "var(--bm-text-primary)",
+                cursor: "pointer",
+              }}
+            >
+              <option value="all">All Statuses ({commercialProducts.length})</option>
+              <option value="published">
+                Published ({commercialProducts.filter((p) => p.published).length})
+              </option>
+              <option value="draft">
+                Drafts ({commercialProducts.filter((p) => !p.published).length})
+              </option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Product List Table or Empty State */}
       <div
         style={{
           background: "white",
@@ -444,16 +454,22 @@ export function ProductManagementView() {
           <div style={{ padding: "48px", textAlign: "center", color: "var(--bm-text-muted)" }}>
             Loading products...
           </div>
+        ) : commercialProducts.length === 0 ? (
+          <EmptyState
+            icon={PackageIcon}
+            title="No Commercial Products Yet"
+            description="Select manufactured products from your Bambu Production inventory to configure selling prices, descriptions, photography, and publish them to your online store."
+            actionText="Import from Production"
+            onAction={openImportModal}
+            badge="STOREFRONT READY"
+          />
         ) : filteredProducts.length === 0 ? (
           <div style={{ padding: "48px", textAlign: "center", color: "var(--bm-text-muted)" }}>
-            <div style={{ marginBottom: "12px" }}>
-              <HugeIcon icon={PackageIcon} size={32} color="var(--bm-text-muted)" />
-            </div>
             <p style={{ fontWeight: 600, fontSize: "15px", color: "var(--bm-text-primary)" }}>
-              No products found
+              No matching products found
             </p>
             <p style={{ fontSize: "13px", marginTop: "4px" }}>
-              Try adjusting your search filters or create a new commercial product.
+              Try adjusting your search query or status filter.
             </p>
           </div>
         ) : (
@@ -463,10 +479,9 @@ export function ProductManagementView() {
                 <tr style={{ background: "#F8FAFC", borderBottom: "1px solid var(--bm-border-subtle)" }}>
                   <th style={{ padding: "14px 18px", fontWeight: 600, color: "var(--bm-text-secondary)" }}>Product</th>
                   <th style={{ padding: "14px 18px", fontWeight: 600, color: "var(--bm-text-secondary)" }}>Category</th>
-                  <th style={{ padding: "14px 18px", fontWeight: 600, color: "var(--bm-text-secondary)" }}>Price (AED)</th>
-                  <th style={{ padding: "14px 18px", fontWeight: 600, color: "var(--bm-text-secondary)" }}>Storefront Status</th>
-                  <th style={{ padding: "14px 18px", fontWeight: 600, color: "var(--bm-text-secondary)" }}>Badges</th>
-                  <th style={{ padding: "14px 18px", fontWeight: 600, color: "var(--bm-text-secondary)", textAlign: "right" }}>Actions</th>
+                  <th style={{ padding: "14px 18px", fontWeight: 600, color: "var(--bm-text-secondary)" }}>Selling Price</th>
+                  <th style={{ padding: "14px 18px", fontWeight: 600, color: "var(--bm-text-secondary)" }}>Publication Status</th>
+                  <th style={{ padding: "14px 18px", fontWeight: 600, color: "var(--bm-text-secondary)", textAlign: "right" }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -478,20 +493,21 @@ export function ProductManagementView() {
                       transition: "background 0.15s ease",
                     }}
                   >
+                    {/* Product Image & Name */}
                     <td style={{ padding: "14px 18px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                         <div
                           style={{
-                            width: "44px",
-                            height: "44px",
-                            borderRadius: "8px",
+                            width: "48px",
+                            height: "48px",
+                            borderRadius: "10px",
                             background: "#F1F5F9",
                             overflow: "hidden",
                             flexShrink: 0,
-                            position: "relative",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
+                            border: "1px solid var(--bm-border-subtle)",
                           }}
                         >
                           {p.imageUrl ? (
@@ -501,42 +517,54 @@ export function ProductManagementView() {
                               style={{ width: "100%", height: "100%", objectFit: "cover" }}
                             />
                           ) : (
-                            <HugeIcon icon={PackageIcon} size={20} color="#94A3B8" />
+                            <HugeIcon icon={PackageIcon} size={22} color="#94A3B8" />
                           )}
                         </div>
                         <div>
-                          <div style={{ fontWeight: 600, color: "var(--bm-text-primary)" }}>{p.name}</div>
-                          <div style={{ fontSize: "11px", color: "var(--bm-text-muted)", marginTop: "2px" }}>
-                            SKU: {p.sku || "N/A"} {p.isBambuImport ? "· Bambu IoT" : ""}
+                          <div style={{ fontWeight: 600, color: "var(--bm-text-primary)", fontSize: "14px" }}>
+                            {p.name}
                           </div>
+                          {p.internalName && p.internalName !== p.name && (
+                            <div style={{ fontSize: "11px", color: "var(--bm-text-muted)", marginTop: "2px" }}>
+                              Prod: {p.internalName}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>
-                    <td style={{ padding: "14px 18px", color: "var(--bm-text-secondary)" }}>
+
+                    {/* Category */}
+                    <td style={{ padding: "14px 18px" }}>
                       <span
                         style={{
                           display: "inline-block",
-                          padding: "4px 8px",
+                          padding: "4px 10px",
                           borderRadius: "6px",
                           background: "#F1F5F9",
                           fontSize: "12px",
                           fontWeight: 500,
+                          color: "var(--bm-text-secondary)",
                         }}
                       >
                         {p.category}
                       </span>
                     </td>
-                    <td style={{ padding: "14px 18px", fontWeight: 700, color: "var(--bm-text-primary)" }}>
+
+                    {/* Selling Price */}
+                    <td style={{ padding: "14px 18px", fontWeight: 700, color: "var(--bm-text-primary)", fontSize: "14px" }}>
                       AED {p.sellingPrice.toFixed(2)}
                     </td>
+
+                    {/* Publication Status (1-click toggle) */}
                     <td style={{ padding: "14px 18px" }}>
                       <button
+                        type="button"
                         onClick={() => handleTogglePublish(p)}
                         style={{
                           display: "inline-flex",
                           alignItems: "center",
                           gap: "6px",
-                          padding: "5px 10px",
+                          padding: "5px 12px",
                           borderRadius: "999px",
                           fontSize: "11px",
                           fontWeight: 600,
@@ -545,48 +573,25 @@ export function ProductManagementView() {
                           background: p.published ? "rgba(16, 185, 129, 0.1)" : "rgba(148, 163, 184, 0.1)",
                           color: p.published ? "#065F46" : "#475569",
                         }}
+                        title={p.published ? "Click to unpublish from storefront" : "Click to publish to live storefront"}
                       >
                         <HugeIcon icon={p.published ? ViewIcon : ViewOffIcon} size={13} />
-                        <span>{p.published ? "Published" : "Draft (Unpublished)"}</span>
+                        <span>{p.published ? "Published" : "Draft (Hidden)"}</span>
                       </button>
                     </td>
-                    <td style={{ padding: "14px 18px" }}>
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                        {p.isFeatured && (
-                          <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", background: "#FEF3C7", color: "#92400E", fontWeight: 700 }}>
-                            Featured
-                          </span>
-                        )}
-                        {p.isBestSeller && (
-                          <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", background: "#DBEAFE", color: "#1E40AF", fontWeight: 700 }}>
-                            Bestseller
-                          </span>
-                        )}
-                        {p.supportsPersonalization && (
-                          <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", background: "#F3E8FF", color: "#6B21A8", fontWeight: 700 }}>
-                            Personalizable
-                          </span>
-                        )}
-                        {!p.isFeatured && !p.isBestSeller && !p.supportsPersonalization && (
-                          <span style={{ fontSize: "11px", color: "var(--bm-text-muted)" }}>—</span>
-                        )}
-                      </div>
-                    </td>
+
+                    {/* Edit Action */}
                     <td style={{ padding: "14px 18px", textAlign: "right" }}>
                       <button
                         onClick={() => openEditModal(p)}
+                        className="bm-btn bm-btn-secondary"
                         style={{
+                          padding: "6px 14px",
+                          fontSize: "12px",
+                          fontWeight: 600,
                           display: "inline-flex",
                           alignItems: "center",
                           gap: "6px",
-                          padding: "6px 12px",
-                          borderRadius: "8px",
-                          border: "1px solid var(--bm-border-subtle)",
-                          background: "white",
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          color: "var(--bm-text-primary)",
-                          cursor: "pointer",
                         }}
                       >
                         <HugeIcon icon={Edit01Icon} size={14} />
@@ -601,8 +606,8 @@ export function ProductManagementView() {
         )}
       </div>
 
-      {/* Edit / Create Product Modal */}
-      {isModalOpen && (
+      {/* 4. Import from Production Modal */}
+      {isImportModalOpen && (
         <div
           style={{
             position: "fixed",
@@ -619,7 +624,254 @@ export function ProductManagementView() {
             style={{
               background: "white",
               borderRadius: "20px",
-              maxWidth: "760px",
+              maxWidth: "720px",
+              width: "100%",
+              maxHeight: "88vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
+              overflow: "hidden",
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: "20px 24px",
+                borderBottom: "1px solid var(--bm-border-subtle)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <h3 style={{ fontSize: "18px", fontWeight: 700, color: "var(--bm-text-primary)", margin: 0 }}>
+                  Import from Bambu Production
+                </h3>
+                <p style={{ fontSize: "12px", color: "var(--bm-text-secondary)", margin: "4px 0 0" }}>
+                  Select a manufactured product from your Bambu Product Inventory to configure commercial selling details.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsImportModalOpen(false)}
+                style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--bm-text-muted)" }}
+              >
+                <HugeIcon icon={CancelCircleIcon} size={22} />
+              </button>
+            </div>
+
+            {/* Modal Search */}
+            <div style={{ padding: "14px 24px", borderBottom: "1px solid var(--bm-border-subtle)", background: "#F8FAFC" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  background: "white",
+                  padding: "8px 14px",
+                  borderRadius: "10px",
+                  border: "1px solid var(--bm-border-subtle)",
+                }}
+              >
+                <HugeIcon icon={Search01Icon} size={15} color="var(--bm-text-muted)" />
+                <input
+                  type="text"
+                  placeholder="Search manufacturing products by model name..."
+                  value={importSearchQuery}
+                  onChange={(e) => setImportSearchQuery(e.target.value)}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    outline: "none",
+                    fontSize: "13px",
+                    width: "100%",
+                    color: "var(--bm-text-primary)",
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Selectable Products List */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px", display: "flex", flexDirection: "column", gap: "10px" }}>
+              {filteredManufacturingProducts.length === 0 ? (
+                <div style={{ padding: "40px", textAlign: "center", color: "var(--bm-text-muted)" }}>
+                  No manufacturing products match your search.
+                </div>
+              ) : (
+                filteredManufacturingProducts.map((prod) => {
+                  const isSelected = selectedForImport?.id === prod.id;
+                  const alreadyImported = prod.isCommercial;
+
+                  return (
+                    <div
+                      key={prod.id}
+                      onClick={() => setSelectedForImport(prod)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "12px 16px",
+                        borderRadius: "12px",
+                        border: isSelected
+                          ? "2px solid var(--bm-accent)"
+                          : "1px solid var(--bm-border-subtle)",
+                        background: isSelected ? "var(--bm-accent-soft, #FFF7ED)" : "white",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div
+                          style={{
+                            width: "44px",
+                            height: "44px",
+                            borderRadius: "8px",
+                            background: "#F1F5F9",
+                            overflow: "hidden",
+                            flexShrink: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {prod.imageUrl && !prod.imageUrl.startsWith("data:") ? (
+                            <img src={prod.imageUrl} alt={prod.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            <HugeIcon icon={PrinterIcon} size={20} color="#94A3B8" />
+                          )}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, color: "var(--bm-text-primary)", fontSize: "13px" }}>
+                            {prod.internalName || prod.name}
+                          </div>
+                          <div style={{ fontSize: "11px", color: "var(--bm-text-muted)", marginTop: "2px" }}>
+                            {prod.grams ? `${prod.grams}g` : ""} {prod.minutes ? `· ${prod.minutes} min print` : ""}{" "}
+                            {prod.unitCost ? `· Unit Cost: AED ${prod.unitCost.toFixed(2)}` : ""}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        {alreadyImported ? (
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              background: "#D1FAE5",
+                              color: "#065F46",
+                              fontWeight: 600,
+                            }}
+                          >
+                            In Store
+                          </span>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              background: "#F1F5F9",
+                              color: "var(--bm-text-secondary)",
+                              fontWeight: 500,
+                            }}
+                          >
+                            Available
+                          </span>
+                        )}
+
+                        <div
+                          style={{
+                            width: "20px",
+                            height: "20px",
+                            borderRadius: "50%",
+                            border: isSelected ? "2px solid var(--bm-accent)" : "2px solid #CBD5E1",
+                            background: isSelected ? "var(--bm-accent)" : "transparent",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {isSelected && <HugeIcon icon={CheckmarkCircle02Icon} size={14} color="white" />}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: "16px 24px",
+                borderTop: "1px solid var(--bm-border-subtle)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                background: "#F8FAFC",
+              }}
+            >
+              <div style={{ fontSize: "12px", color: "var(--bm-text-secondary)" }}>
+                {selectedForImport ? (
+                  <span>
+                    Selected: <strong>{selectedForImport.internalName || selectedForImport.name}</strong>
+                  </span>
+                ) : (
+                  <span>Select a product above to continue.</span>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  type="button"
+                  onClick={() => setIsImportModalOpen(false)}
+                  className="bm-btn bm-btn-secondary"
+                  style={{ padding: "8px 16px", fontSize: "13px" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleContinueToSetup}
+                  disabled={!selectedForImport}
+                  className="bm-btn bm-btn-primary"
+                  style={{
+                    padding: "8px 18px",
+                    fontSize: "13px",
+                    opacity: selectedForImport ? 1 : 0.5,
+                    cursor: selectedForImport ? "pointer" : "not-allowed",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                  }}
+                >
+                  <span>Continue to Commercial Setup</span>
+                  <HugeIcon icon={ArrowRight01Icon} size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Commercial Product Details Modal (Strictly 6 Fields) */}
+      {isEditModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: "20px",
+              maxWidth: "680px",
               width: "100%",
               maxHeight: "90vh",
               overflowY: "auto",
@@ -644,14 +896,14 @@ export function ProductManagementView() {
             >
               <div>
                 <h3 style={{ fontSize: "18px", fontWeight: 700, color: "var(--bm-text-primary)", margin: 0 }}>
-                  {editingProduct ? `Edit Product: ${editingProduct.name}` : "Create Commercial Product"}
+                  {editingProduct?.isCommercial ? "Edit Commercial Product" : "Commercial Product Setup"}
                 </h3>
                 <p style={{ fontSize: "12px", color: "var(--bm-text-secondary)", margin: "4px 0 0" }}>
-                  Configure storefront pricing, marketing images, specifications, and website publication.
+                  Record ID: <code style={{ fontFamily: "monospace" }}>{editingProduct?.id}</code> · Manufacturing fields preserved.
                 </p>
               </div>
               <button
-                onClick={() => setIsModalOpen(false)}
+                onClick={() => setIsEditModalOpen(false)}
                 style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--bm-text-muted)" }}
               >
                 <HugeIcon icon={CancelCircleIcon} size={22} />
@@ -671,319 +923,228 @@ export function ProductManagementView() {
                 </div>
               )}
 
-              {/* Section 1: Product Identity & Commercial Pricing */}
-              <div>
-                <h4 style={{ fontSize: "14px", fontWeight: 700, color: "var(--bm-text-primary)", marginBottom: "12px" }}>
-                  1. Product Identity & Pricing
-                </h4>
-                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "12px" }}>
-                  <div>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", display: "block", marginBottom: "4px" }}>
-                      Public Product Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formName}
-                      onChange={(e) => setFormName(e.target.value)}
-                      placeholder="e.g. Geometric Moon Lamp"
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--bm-border-subtle)", fontSize: "13px" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", display: "block", marginBottom: "4px" }}>
-                      Selling Price (AED) *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      required
-                      value={formPrice}
-                      onChange={(e) => setFormPrice(e.target.value)}
-                      placeholder="e.g. 149.00"
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--bm-border-subtle)", fontSize: "13px" }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginTop: "12px" }}>
-                  <div>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", display: "block", marginBottom: "4px" }}>
-                      Storefront Category
-                    </label>
-                    <select
-                      value={formCategory}
-                      onChange={(e) => setFormCategory(e.target.value)}
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--bm-border-subtle)", fontSize: "13px", background: "white" }}
-                    >
-                      {CATEGORIES.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", display: "block", marginBottom: "4px" }}>
-                      SKU Code
-                    </label>
-                    <input
-                      type="text"
-                      value={formSku}
-                      onChange={(e) => setFormSku(e.target.value)}
-                      placeholder="e.g. LC-ML-101"
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--bm-border-subtle)", fontSize: "13px" }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ marginTop: "12px" }}>
-                  <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", display: "block", marginBottom: "4px" }}>
-                    Public Marketing Description
+              {/* 1. Product Display Name & 2. Selling Price */}
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "14px" }}>
+                <div>
+                  <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", display: "block", marginBottom: "6px" }}>
+                    Product Display Name *
                   </label>
-                  <textarea
-                    rows={3}
-                    value={formDescription}
-                    onChange={(e) => setFormDescription(e.target.value)}
-                    placeholder="Describe the craftsmanship, lighting effect, material texture, and Dubai studio story..."
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--bm-border-subtle)", fontSize: "13px" }}
+                  <input
+                    type="text"
+                    required
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder="e.g. Geometric Moon Lamp"
+                    style={{
+                      width: "100%",
+                      padding: "10px 14px",
+                      borderRadius: "10px",
+                      border: "1px solid var(--bm-border-subtle)",
+                      fontSize: "13px",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", display: "block", marginBottom: "6px" }}>
+                    Selling Price (AED) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={formPrice}
+                    onChange={(e) => setFormPrice(e.target.value)}
+                    placeholder="e.g. 149.00"
+                    style={{
+                      width: "100%",
+                      padding: "10px 14px",
+                      borderRadius: "10px",
+                      border: "1px solid var(--bm-border-subtle)",
+                      fontSize: "13px",
+                      boxSizing: "border-box",
+                    }}
                   />
                 </div>
               </div>
 
-              {/* Section 2: Storefront Media Gallery */}
-              <div style={{ borderTop: "1px solid var(--bm-border-subtle)", paddingTop: "16px" }}>
-                <h4 style={{ fontSize: "14px", fontWeight: 700, color: "var(--bm-text-primary)", marginBottom: "4px" }}>
-                  2. Product Photography & Gallery
-                </h4>
-                <p style={{ fontSize: "12px", color: "var(--bm-text-secondary)", marginBottom: "12px" }}>
-                  Upload multiple angles. The first photo serves as the primary storefront card image.
-                </p>
+              {/* 3. Category */}
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", display: "block", marginBottom: "6px" }}>
+                  Storefront Category
+                </label>
+                <select
+                  value={formCategory}
+                  onChange={(e) => setFormCategory(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: "10px",
+                    border: "1px solid var(--bm-border-subtle)",
+                    fontSize: "13px",
+                    background: "white",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                {/* Gallery List */}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "12px" }}>
-                  {formGalleryImages.map((imgUrl, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        position: "relative",
-                        width: "110px",
-                        height: "110px",
-                        borderRadius: "10px",
-                        border: idx === 0 ? "2px solid #F45A00" : "1px solid var(--bm-border-subtle)",
-                        overflow: "hidden",
-                        background: "#F8FAFC",
-                      }}
+              {/* 4. Description */}
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", display: "block", marginBottom: "6px" }}>
+                  Storefront Product Description
+                </label>
+                <textarea
+                  rows={3}
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                  placeholder="Describe craftsmanship, finish details, and studio quality for website visitors..."
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: "10px",
+                    border: "1px solid var(--bm-border-subtle)",
+                    fontSize: "13px",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              {/* 5. Product Images (Gallery, Select from Media Library, Upload) */}
+              <div style={{ borderTop: "1px solid var(--bm-border-subtle)", paddingTop: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <div>
+                    <label style={{ fontSize: "13px", fontWeight: 700, color: "var(--bm-text-primary)", display: "block" }}>
+                      Product Images
+                    </label>
+                    <span style={{ fontSize: "11px", color: "var(--bm-text-secondary)" }}>
+                      First image serves as the main storefront card photo.
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleDirectFileUpload}
+                      accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                      style={{ display: "none" }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingImage}
+                      className="bm-btn bm-btn-secondary"
+                      style={{ padding: "6px 12px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" }}
                     >
-                      <img src={imgUrl} alt={`Gallery angle ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      {idx === 0 && (
-                        <span style={{ position: "absolute", bottom: 4, left: 4, background: "#F45A00", color: "white", fontSize: "9px", fontWeight: 700, padding: "2px 4px", borderRadius: "3px" }}>
-                          MAIN
-                        </span>
-                      )}
-                      <div style={{ position: "absolute", top: 4, right: 4, display: "flex", gap: "2px" }}>
-                        {idx > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => moveGalleryImage(idx, "up")}
-                            style={{ background: "rgba(0,0,0,0.6)", color: "white", border: "none", borderRadius: "4px", padding: "2px", cursor: "pointer" }}
-                            title="Move earlier"
+                      <HugeIcon icon={Upload01Icon} size={14} />
+                      <span>{isUploadingImage ? "Uploading..." : "Upload Photo"}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsMediaPickerOpen(true)}
+                      className="bm-btn bm-btn-secondary"
+                      style={{ padding: "6px 12px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" }}
+                    >
+                      <HugeIcon icon={Image01Icon} size={14} />
+                      <span>Select from Media Library</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Images Preview Grid */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", minHeight: "80px", background: "#F8FAFC", padding: "12px", borderRadius: "12px", border: "1px dashed var(--bm-border-subtle)" }}>
+                  {formImages.length === 0 ? (
+                    <div style={{ width: "100%", textAlign: "center", padding: "16px 0", color: "var(--bm-text-muted)", fontSize: "12px" }}>
+                      No product images added yet. Click &ldquo;Select from Media Library&rdquo; or &ldquo;Upload Photo&rdquo;.
+                    </div>
+                  ) : (
+                    formImages.map((imgUrl, idx) => (
+                      <div
+                        key={idx}
+                        style={{
+                          position: "relative",
+                          width: "90px",
+                          height: "90px",
+                          borderRadius: "8px",
+                          border: idx === 0 ? "2px solid var(--bm-accent)" : "1px solid var(--bm-border-subtle)",
+                          overflow: "hidden",
+                          background: "white",
+                        }}
+                      >
+                        <img src={imgUrl} alt={`Product ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        {idx === 0 && (
+                          <span
+                            style={{
+                              position: "absolute",
+                              bottom: 3,
+                              left: 3,
+                              background: "var(--bm-accent)",
+                              color: "white",
+                              fontSize: "8px",
+                              fontWeight: 700,
+                              padding: "2px 4px",
+                              borderRadius: "3px",
+                            }}
                           >
-                            <HugeIcon icon={ArrowUp01Icon} size={12} />
-                          </button>
-                        )}
-                        {idx < formGalleryImages.length - 1 && (
-                          <button
-                            type="button"
-                            onClick={() => moveGalleryImage(idx, "down")}
-                            style={{ background: "rgba(0,0,0,0.6)", color: "white", border: "none", borderRadius: "4px", padding: "2px", cursor: "pointer" }}
-                            title="Move later"
-                          >
-                            <HugeIcon icon={ArrowDown01Icon} size={12} />
-                          </button>
+                            MAIN
+                          </span>
                         )}
                         <button
                           type="button"
-                          onClick={() => removeGalleryImage(idx)}
-                          style={{ background: "rgba(220,38,38,0.8)", color: "white", border: "none", borderRadius: "4px", padding: "2px", cursor: "pointer" }}
+                          onClick={() => handleRemoveImage(idx)}
+                          style={{
+                            position: "absolute",
+                            top: 3,
+                            right: 3,
+                            background: "rgba(220,38,38,0.85)",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            padding: "2px",
+                            cursor: "pointer",
+                          }}
                           title="Remove image"
                         >
                           <HugeIcon icon={Delete01Icon} size={12} />
                         </button>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
+              </div>
 
-                {/* Add Image by URL / Storage Reference */}
-                <div style={{ display: "flex", gap: "8px" }}>
+              {/* 6. Published Toggle */}
+              <div style={{ borderTop: "1px solid var(--bm-border-subtle)", paddingTop: "16px" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }}>
                   <input
-                    type="text"
-                    value={newGalleryUrl}
-                    onChange={(e) => setNewGalleryUrl(e.target.value)}
-                    placeholder="Enter image URL or asset path (e.g. https://... or /assets/images/...)"
-                    style={{ flex: 1, padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--bm-border-subtle)", fontSize: "13px" }}
+                    type="checkbox"
+                    checked={formPublished}
+                    onChange={(e) => setFormPublished(e.target.checked)}
+                    style={{ width: "18px", height: "18px", accentColor: "#10B981" }}
                   />
-                  <button
-                    type="button"
-                    onClick={addGalleryImage}
-                    style={{
-                      padding: "8px 14px",
-                      borderRadius: "8px",
-                      background: "var(--bm-bg-subtle, #F1F5F9)",
-                      border: "1px solid var(--bm-border-subtle)",
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Add Image
-                  </button>
-                </div>
+                  <div>
+                    <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--bm-text-primary)" }}>
+                      Publish to Online Storefront
+                    </span>
+                    <p style={{ fontSize: "12px", color: "var(--bm-text-secondary)", margin: "2px 0 0" }}>
+                      When enabled, this product is immediately visible on the public website at /shop.
+                    </p>
+                  </div>
+                </label>
               </div>
 
-              {/* Section 3: Physical & Technical Specifications */}
-              <div style={{ borderTop: "1px solid var(--bm-border-subtle)", paddingTop: "16px" }}>
-                <h4 style={{ fontSize: "14px", fontWeight: 700, color: "var(--bm-text-primary)", marginBottom: "12px" }}>
-                  3. Materials & Technical Specifications
-                </h4>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                  <div>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", display: "block", marginBottom: "4px" }}>
-                      Material Specification
-                    </label>
-                    <input
-                      type="text"
-                      value={formMaterial}
-                      onChange={(e) => setFormMaterial(e.target.value)}
-                      placeholder="e.g. Matte Ivory PLA+ / Impact PETG"
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--bm-border-subtle)", fontSize: "13px" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", display: "block", marginBottom: "4px" }}>
-                      Dimensions
-                    </label>
-                    <input
-                      type="text"
-                      value={formDimensions}
-                      onChange={(e) => setFormDimensions(e.target.value)}
-                      placeholder="e.g. 18 x 14 x 23 cm"
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--bm-border-subtle)", fontSize: "13px" }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginTop: "12px" }}>
-                  <div>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", display: "block", marginBottom: "4px" }}>
-                      Print Finish Spec
-                    </label>
-                    <input
-                      type="text"
-                      value={formFinish}
-                      onChange={(e) => setFormFinish(e.target.value)}
-                      placeholder="e.g. 0.16mm Layer Height, Smooth Satin"
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--bm-border-subtle)", fontSize: "13px" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", display: "block", marginBottom: "4px" }}>
-                      Available Color Palette (comma separated)
-                    </label>
-                    <input
-                      type="text"
-                      value={formColors}
-                      onChange={(e) => setFormColors(e.target.value)}
-                      placeholder="e.g. Warm Cream, Deep Navy, Soft Amber"
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--bm-border-subtle)", fontSize: "13px" }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 4: Storefront Publication & Badges */}
-              <div style={{ borderTop: "1px solid var(--bm-border-subtle)", paddingTop: "16px" }}>
-                <h4 style={{ fontSize: "14px", fontWeight: 700, color: "var(--bm-text-primary)", marginBottom: "12px" }}>
-                  4. Commercial Flags & Visibility
-                </h4>
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={formPublished}
-                      onChange={(e) => setFormPublished(e.target.checked)}
-                      style={{ width: "16px", height: "16px", accentColor: "#10B981" }}
-                    />
-                    <div>
-                      <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--bm-text-primary)" }}>
-                        Publish to Public Website
-                      </span>
-                      <p style={{ fontSize: "11px", color: "var(--bm-text-secondary)", margin: "2px 0 0" }}>
-                        Make this product publicly visible on the live catalogue at /shop.
-                      </p>
-                    </div>
-                  </label>
-
-                  <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={formPersonalizable}
-                      onChange={(e) => setFormPersonalizable(e.target.checked)}
-                      style={{ width: "16px", height: "16px", accentColor: "#F45A00" }}
-                    />
-                    <div>
-                      <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--bm-text-primary)" }}>
-                        Enable Personalisation
-                      </span>
-                      <p style={{ fontSize: "11px", color: "var(--bm-text-secondary)", margin: "2px 0 0" }}>
-                        Displays a custom lettering / monogram input field on the website product page.
-                      </p>
-                    </div>
-                  </label>
-
-                  <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={formFeatured}
-                      onChange={(e) => setFormFeatured(e.target.checked)}
-                      style={{ width: "16px", height: "16px", accentColor: "#F45A00" }}
-                    />
-                    <div>
-                      <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--bm-text-primary)" }}>
-                        Mark as Featured Product
-                      </span>
-                      <p style={{ fontSize: "11px", color: "var(--bm-text-secondary)", margin: "2px 0 0" }}>
-                        Showcases this creation prominently in curated sections.
-                      </p>
-                    </div>
-                  </label>
-
-                  <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={formBestseller}
-                      onChange={(e) => setFormBestseller(e.target.checked)}
-                      style={{ width: "16px", height: "16px", accentColor: "#3B82F6" }}
-                    />
-                    <div>
-                      <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--bm-text-primary)" }}>
-                        Mark as Bestseller
-                      </span>
-                      <p style={{ fontSize: "11px", color: "var(--bm-text-secondary)", margin: "2px 0 0" }}>
-                        Displays the Bestseller badge and includes in high-demand carousels.
-                      </p>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              {/* Modal Footer */}
+              {/* Form Actions */}
               <div
                 style={{
                   display: "flex",
                   justifyContent: "flex-end",
-                  gap: "12px",
+                  gap: "10px",
                   borderTop: "1px solid var(--bm-border-subtle)",
                   paddingTop: "16px",
                   marginTop: "8px",
@@ -991,37 +1152,90 @@ export function ProductManagementView() {
               >
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  style={{
-                    padding: "10px 18px",
-                    borderRadius: "10px",
-                    border: "1px solid var(--bm-border-subtle)",
-                    background: "white",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="bm-btn bm-btn-secondary"
+                  style={{ padding: "10px 18px", fontSize: "13px" }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  style={{
-                    padding: "10px 22px",
-                    borderRadius: "10px",
-                    background: "var(--bm-accent)",
-                    color: "white",
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    border: "none",
-                    cursor: saving ? "not-allowed" : "pointer",
-                  }}
+                  className="bm-btn bm-btn-primary"
+                  style={{ padding: "10px 22px", fontSize: "13px", fontWeight: 600 }}
                 >
-                  {saving ? "Saving..." : "Save Product"}
+                  {saving ? "Saving..." : "Save Product Details"}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Media Library Picker Modal (Reuses existing Media Library) */}
+      {isMediaPickerOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 110,
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: "20px",
+              maxWidth: "880px",
+              width: "100%",
+              maxHeight: "88vh",
+              overflowY: "auto",
+              boxShadow: "0 25px 50px rgba(0,0,0,0.3)",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div
+              style={{
+                padding: "16px 24px",
+                borderBottom: "1px solid var(--bm-border-subtle)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                position: "sticky",
+                top: 0,
+                background: "white",
+                zIndex: 2,
+              }}
+            >
+              <div>
+                <h3 style={{ fontSize: "17px", fontWeight: 700, color: "var(--bm-text-primary)", margin: 0 }}>
+                  Select Image from Media Library
+                </h3>
+                <p style={{ fontSize: "12px", color: "var(--bm-text-secondary)", margin: "2px 0 0" }}>
+                  Click an image to add it to your commercial product gallery.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsMediaPickerOpen(false)}
+                style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--bm-text-muted)" }}
+              >
+                <HugeIcon icon={CancelCircleIcon} size={22} />
+              </button>
+            </div>
+
+            <div style={{ padding: "20px" }}>
+              <MediaLibraryView
+                onSelectImage={(url) => {
+                  handleSelectFromMediaLibrary(url);
+                  setIsMediaPickerOpen(false);
+                }}
+              />
+            </div>
           </div>
         </div>
       )}

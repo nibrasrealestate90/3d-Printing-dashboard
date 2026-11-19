@@ -10,8 +10,8 @@ export default async function ProductsPage() {
     <BusinessWorkspaceLayout
       user={auth.user}
       currentPath="/admin/products"
-      title="Commercial Products"
-      breadcrumbs="Business Management > Products"
+      title="Products"
+      breadcrumbs="Core Operations"
     >
       <ProductManagementView />
     </BusinessWorkspaceLayout>

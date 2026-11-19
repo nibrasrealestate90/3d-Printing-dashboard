@@ -28,6 +28,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const { searchParams } = new URL(req.url);
+    const scope = searchParams.get('scope')?.toLowerCase().trim();
+
     const rows = await sql`
       SELECT record_id, data, updated_at
       FROM public.ledger_collections
@@ -35,10 +38,11 @@ export async function GET(req: NextRequest) {
       ORDER BY updated_at DESC;
     `;
 
-    const products = rows.map((r: any) => {
+    let products = rows.map((r: any) => {
       const d = r.data || {};
       const rawPrice = Number(d.sellingPrice ?? d.directPrice ?? 0);
       const sellingPrice = isNaN(rawPrice) || rawPrice < 0 ? 0 : Number(rawPrice.toFixed(2));
+      const isCommercial = Boolean(d.isCommercial || d.publicName || (d.published !== undefined && d.published !== null));
 
       return {
         id: String(d.id || r.record_id),
@@ -63,12 +67,21 @@ export async function GET(req: NextRequest) {
         isBestSeller: Boolean(d.isBestSeller),
         isAvailable: Boolean(d.isAvailable ?? true),
         published: Boolean(d.published),
+        isCommercial,
         grams: typeof d.grams === 'number' ? d.grams : undefined,
+        minutes: typeof d.minutes === 'number' ? d.minutes : undefined,
         unitCost: typeof d.unitCost === 'number' ? d.unitCost : undefined,
+        directPrice: typeof d.directPrice === 'number' ? d.directPrice : undefined,
         isBambuImport: Boolean(d.notes?.includes('Bambu') || d.photo?.startsWith('data:')),
         updatedAt: r.updated_at ? new Date(r.updated_at).toISOString() : new Date().toISOString(),
       };
     });
+
+    if (scope === 'commercial') {
+      products = products.filter((p) => p.isCommercial);
+    } else if (scope === 'production') {
+      // Return all manufacturing products from ledger_collections
+    }
 
     return NextResponse.json({
       success: true,
@@ -113,22 +126,46 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const name = String(body.name || body.publicName || '').trim();
-    if (!name) {
-      return NextResponse.json(
-        { error: 'VALIDATION_ERROR', message: 'Product name is required.' },
-        { status: 400 }
-      );
+    const rawName = String(body.name || body.publicName || '').trim();
+    const rawPrice = Number(body.sellingPrice);
+    const sellingPrice = isNaN(rawPrice) || rawPrice < 0 ? 0 : Number(rawPrice.toFixed(2));
+    const isAttemptingPublish = Boolean(body.published);
+
+    // Publication Validation (Requirement 3):
+    // Requires non-empty name, selling price > 0, category, and at least one image.
+    // Incomplete products are allowed to remain drafts; never automatically publish incomplete products.
+    if (isAttemptingPublish) {
+      if (!rawName) {
+        return NextResponse.json(
+          { error: 'VALIDATION_ERROR', message: 'Product display name is required to publish.' },
+          { status: 400 }
+        );
+      }
+      if (sellingPrice <= 0) {
+        return NextResponse.json(
+          { error: 'VALIDATION_ERROR', message: 'Selling price must be greater than 0 AED to publish.' },
+          { status: 400 }
+        );
+      }
+      const catCheck = String(body.category || body.publicCategory || '').trim();
+      if (!catCheck) {
+        return NextResponse.json(
+          { error: 'VALIDATION_ERROR', message: 'Product category is required to publish.' },
+          { status: 400 }
+        );
+      }
+      const rawImgs = Array.isArray(body.images) ? body.images : [];
+      const hasImage = Boolean(sanitizeImageUrl(body.imageUrl) || rawImgs.some((img: any) => Boolean(sanitizeImageUrl(img))));
+      if (!hasImage) {
+        return NextResponse.json(
+          { error: 'VALIDATION_ERROR', message: 'At least one valid product image is required to publish.' },
+          { status: 400 }
+        );
+      }
     }
 
-    const rawPrice = Number(body.sellingPrice);
-    if (isNaN(rawPrice) || rawPrice < 0) {
-      return NextResponse.json(
-        { error: 'VALIDATION_ERROR', message: 'Selling price must be a valid positive number in AED.' },
-        { status: 400 }
-      );
-    }
-    const sellingPrice = Number(rawPrice.toFixed(2));
+    const name = rawName || 'Draft Product';
+    const published = isAttemptingPublish;
 
     const id = body.id && typeof body.id === 'string' && body.id.trim()
       ? body.id.trim()
@@ -165,7 +202,6 @@ export async function POST(req: NextRequest) {
     const isFeatured = Boolean(body.isFeatured);
     const isBestSeller = Boolean(body.isBestSeller);
     const isAvailable = Boolean(body.isAvailable ?? true);
-    const published = Boolean(body.published);
 
     // Fetch existing record if present to preserve manufacturing fields
     const existing = await sql`
@@ -202,6 +238,7 @@ export async function POST(req: NextRequest) {
       isBestSeller,
       isAvailable,
       published,
+      isCommercial: true,
       updatedAt: new Date().toISOString(),
     };
 

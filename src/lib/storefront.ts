@@ -17,7 +17,6 @@ export interface StorefrontProduct {
   category: string;
   sellingPrice: number;
   currency: string;
-  weightGrams?: number;
   imageUrl: string | null;
   images: string[];
   material?: string;
@@ -111,7 +110,9 @@ export function sanitizeImageUrl(rawUrl: unknown): string | null {
     lower.startsWith('javascript:') ||
     lower.startsWith('data:') ||
     lower.startsWith('file:') ||
-    lower.startsWith('vbscript:')
+    lower.startsWith('vbscript:') ||
+    lower.startsWith('blob:') ||
+    lower.startsWith('about:')
   ) {
     return null;
   }
@@ -138,12 +139,40 @@ export function sanitizeImageUrl(rawUrl: unknown): string | null {
       return null;
     }
 
+    const host = parsed.hostname.toLowerCase();
+
+    // Reject internal / link-local / cloud metadata hostnames (SSRF & internal exposure protection)
+    if (
+      host === '169.254.169.254' ||
+      host === 'metadata.google.internal' ||
+      host.endsWith('.internal') ||
+      host.endsWith('.local') ||
+      host.endsWith('.lan') ||
+      host === '0.0.0.0'
+    ) {
+      return null;
+    }
+
     const isProduction = process.env.NODE_ENV === 'production';
+
+    // In production, reject all private/loopback IP addresses
+    if (isProduction) {
+      if (
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host === '::1' ||
+        host.startsWith('10.') ||
+        host.startsWith('192.168.') ||
+        /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)
+      ) {
+        return null;
+      }
+    }
+
     if (parsed.protocol === 'https:') {
       return parsed.toString();
     }
     if (parsed.protocol === 'http:' && !isProduction) {
-      const host = parsed.hostname.toLowerCase();
       if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.lvh.me')) {
         return parsed.toString();
       }
@@ -178,8 +207,8 @@ export function sanitizeProductForStorefront(row: {
     : `${slugify(name)}-${rawId.replace(/^prod_/, '').slice(0, 8) || 'spec'}`;
 
   // Apply robust scheme and scheme-relative validation
-  // Strips base64 Bambu camera captures and dangerous schemes
-  const imageUrl = sanitizeImageUrl(data.imageUrl) || sanitizeImageUrl(data.photo);
+  // Strips base64 Bambu camera captures and dangerous schemes; strictly uses commercial imageUrl
+  const imageUrl = sanitizeImageUrl(data.imageUrl);
 
   // Price resolution: prefer sellingPrice, then directPrice, default to 0
   const rawPrice = Number(data.sellingPrice ?? data.directPrice ?? 0);
@@ -196,7 +225,7 @@ export function sanitizeProductForStorefront(row: {
       ? data.description.trim()
       : '';
 
-  // Gallery images sanitation
+  // Strict Gallery images sanitation
   const rawImages: unknown[] = Array.isArray(data.images) ? data.images : [];
   const sanitizedImages: string[] = [];
   for (const item of rawImages) {
@@ -205,8 +234,13 @@ export function sanitizeProductForStorefront(row: {
       sanitizedImages.push(s);
     }
   }
-  if (imageUrl && !sanitizedImages.includes(imageUrl)) {
-    sanitizedImages.unshift(imageUrl);
+
+  // Ensure imageUrl and images follow the same validation rules
+  let resolvedImageUrl = imageUrl;
+  if (resolvedImageUrl && !sanitizedImages.includes(resolvedImageUrl)) {
+    sanitizedImages.unshift(resolvedImageUrl);
+  } else if (!resolvedImageUrl && sanitizedImages.length > 0) {
+    resolvedImageUrl = sanitizedImages[0];
   }
 
   // Specifications
@@ -226,8 +260,7 @@ export function sanitizeProductForStorefront(row: {
     category: String(data.publicCategory || data.category || '3D Prints').trim(),
     sellingPrice,
     currency: 'AED',
-    weightGrams: typeof data.grams === 'number' && Number.isFinite(data.grams) ? data.grams : undefined,
-    imageUrl,
+    imageUrl: resolvedImageUrl,
     images: sanitizedImages,
     material,
     dimensions,

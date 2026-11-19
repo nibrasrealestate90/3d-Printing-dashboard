@@ -48,6 +48,50 @@ export async function POST(
     }
 
     const currentData = existing[0].data || {};
+
+    // Publication Validation (Requirement 3):
+    // Requires non-empty name, selling price > 0, category, and at least one valid image.
+    // Incomplete products are allowed to remain drafts; never automatically publish incomplete products.
+    if (published) {
+      const name = String(currentData.publicName || currentData.name || '').trim();
+      if (!name) {
+        return NextResponse.json(
+          { error: 'VALIDATION_ERROR', message: 'Product display name is required to publish.' },
+          { status: 400 }
+        );
+      }
+
+      const rawPrice = Number(currentData.sellingPrice ?? currentData.directPrice);
+      const sellingPrice = isNaN(rawPrice) || rawPrice <= 0 ? 0 : rawPrice;
+      if (sellingPrice <= 0) {
+        return NextResponse.json(
+          { error: 'VALIDATION_ERROR', message: 'Selling price must be greater than 0 AED to publish.' },
+          { status: 400 }
+        );
+      }
+
+      const category = String(currentData.publicCategory || currentData.category || '').trim();
+      if (!category) {
+        return NextResponse.json(
+          { error: 'VALIDATION_ERROR', message: 'Product category is required to publish.' },
+          { status: 400 }
+        );
+      }
+
+      const rawImgs = Array.isArray(currentData.images) ? currentData.images : [];
+      const hasImg = Boolean(
+        (typeof currentData.imageUrl === 'string' && currentData.imageUrl.trim() && !currentData.imageUrl.startsWith('data:image')) ||
+        rawImgs.some((img: any) => typeof img === 'string' && img.trim() && !img.startsWith('data:image'))
+      );
+
+      if (!hasImg) {
+        return NextResponse.json(
+          { error: 'VALIDATION_ERROR', message: 'At least one valid product image is required to publish.' },
+          { status: 400 }
+        );
+      }
+    }
+
     const updatedData = {
       ...currentData,
       published,
