@@ -676,70 +676,32 @@ function payStatus(i) {
 /* ---------- tabs ---------- */
 const TABS = [
   ["dashboard", "Dashboard"],
-  ["products", "Product Catalogue"],
+  ["prints", "Print Jobs"],
   ["filaments", "Filament Inventory"],
   ["stock", "Stock Management"],
-  ["prints", "Print Log"],
   ["calc", "Cost Calculator"],
-  ["customers", "Customers"],
-  ["orders", "Orders"],
-  ["kyc", "Customer KYC"],
-  ["quotes", "Quotations"],
-  ["invoices", "Invoices & Payments"],
-  ["expenses", "Expenses"],
-  ["reports", "Financial Reports"],
-  ["reminders", "Reminders"],
-  ["automation-history", "Automation History"],
-  ["accounts", "Accounts & Team"],
+  ["reminders", "Maintenance Reminders"],
+  ["automation-history", "Sync History"],
   ["settings", "Settings"]
 ];
 
 /* ---------- Navigation Groups (Universal 3D Studio Architecture) ---------- */
 const NAV_GROUPS = [
   {
-    group: "OVERVIEW",
+    group: "MANUFACTURING",
     items: [
-      { key: "dashboard", label: "Dashboard", icon: APP_ICONS.navDashboard }
-    ]
-  },
-  {
-    group: "INVENTORY & PRODUCTION",
-    items: [
-      { key: "products", label: "Product Catalogue", icon: APP_ICONS.navProducts },
+      { key: "dashboard", label: "Dashboard", icon: APP_ICONS.navDashboard },
+      { key: "prints", label: "Print Jobs", icon: APP_ICONS.navPrints },
       { key: "filaments", label: "Filament Inventory", icon: APP_ICONS.navFilaments },
       { key: "stock", label: "Stock Management", icon: APP_ICONS.navStock },
-      { key: "prints", label: "Print Log", icon: APP_ICONS.navPrints },
       { key: "calc", label: "Cost Calculator", icon: APP_ICONS.navCalc }
     ]
   },
   {
-    group: "CUSTOMERS & SALES",
+    group: "OPERATIONS",
     items: [
-      { key: "customers", label: "Customers", icon: APP_ICONS.navCustomers },
-      { key: "orders", label: "Orders", icon: APP_ICONS.navOrders },
-      { key: "kyc", label: "Customer KYC", icon: APP_ICONS.navKyc },
-      { key: "quotes", label: "Quotations", icon: APP_ICONS.navQuotes }
-    ]
-  },
-  {
-    group: "FINANCE",
-    items: [
-      { key: "invoices", label: "Invoices & Payments", icon: APP_ICONS.navInvoices },
-      { key: "expenses", label: "Expenses", icon: APP_ICONS.navExpenses },
-      { key: "reports", label: "Financial Reports", icon: APP_ICONS.navReports }
-    ]
-  },
-  {
-    group: "AUTOMATION",
-    items: [
-      { key: "reminders", label: "Reminders", icon: APP_ICONS.navReminders },
-      { key: "automation-history", label: "Automation History", icon: APP_ICONS.navAutomation }
-    ]
-  },
-  {
-    group: "STUDIO",
-    items: [
-      { key: "accounts", label: "Accounts & Team", icon: APP_ICONS.navAccounts },
+      { key: "reminders", label: "Maintenance Reminders", icon: APP_ICONS.navReminders },
+      { key: "automation-history", label: "Sync History", icon: APP_ICONS.navAutomation },
       { key: "settings", label: "Settings", icon: APP_ICONS.navSettings }
     ]
   }
@@ -753,8 +715,10 @@ function drawTabs() {
       <div class="nav-group-label">${g.group}</div>
       ${g.items.map(item => {
         let badge = "";
-        if (item.key === "invoices") badge = `<span class="nav-badge">${S.invoices.length}</span>`;
-        if (item.key === "products") badge = `<span class="nav-badge">${S.products.length}</span>`;
+        if (item.key === "prints") {
+          const count = (S.prints || []).length;
+          badge = `<span class="nav-badge">${count}</span>`;
+        }
         if (item.key === "filaments") {
           const count = (S.filament_stock || S.filaments || []).length;
           badge = `<span class="nav-badge">${count}</span>`;
@@ -796,27 +760,53 @@ function toggleTheme() {
   }
 }
 
+function vRedirectModule(tabKey, tabLabel, adminRoute) {
+  return `
+    <div class="card" style="max-width: 680px; margin: 40px auto; padding: 40px 32px; text-align: center; border-radius: 20px; box-shadow: 0 4px 20px rgba(6, 44, 47, 0.06);">
+      <div style="width: 56px; height: 56px; border-radius: 16px; background: var(--color-pastel-mint, #D8F2EE); color: #062C2F; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 20px;">
+        ${APP_ICONS.navProducts(28, 2)}
+      </div>
+      <h2 style="font-size: 20px; font-weight: 700; color: var(--color-text-primary, #062C2F); margin-bottom: 10px;">${tabLabel} has moved to Business Management</h2>
+      <p style="font-size: 14px; color: var(--color-text-secondary, #506867); line-height: 1.6; max-width: 480px; margin: 0 auto 24px;">
+        To streamline the manufacturing workspace, commercial operations (${tabLabel.toLowerCase()}) are now managed centrally in the dedicated Business Workspace.
+      </p>
+      <div style="display: flex; gap: 12px; justify-content: center; align-items: center;">
+        <a href="${adminRoute}" class="btn pri btn-pill-primary" style="display: inline-flex; align-items: center; gap: 8px; text-decoration: none; padding: 10px 20px; font-weight: 600;">
+          Open in Business Suite &rarr;
+        </a>
+        <button type="button" class="btn btn-pill" data-tab-link="dashboard" style="padding: 10px 18px;">
+          Return to Dashboard
+        </button>
+      </div>
+    </div>
+  `;
+}
+
 function render() {
   try {
     const savedTab = localStorage.getItem("ps_tab");
-    if (savedTab && [
-      "dashboard", "products", "filaments", "stock", "prints", "calc",
-      "customers", "orders", "kyc", "quotes",
-      "invoices", "expenses", "reports",
-      "reminders", "automation-history",
-      "accounts", "settings"
-    ].includes(savedTab)) {
+    const allowedTabs = [
+      "dashboard", "prints", "filaments", "stock", "calc",
+      "reminders", "automation-history", "settings"
+    ];
+    if (savedTab && allowedTabs.includes(savedTab)) {
       tab = savedTab;
+    } else if (savedTab && !allowedTabs.includes(savedTab)) {
+      tab = "dashboard";
     }
   } catch(_) {}
   const st = set_();
   const tabTitles = {
     dashboard: "Dashboard",
-    products: "Product Catalogue",
+    prints: "Print Jobs",
     filaments: "Filament Inventory",
     stock: "Stock Management",
-    prints: "Print Log",
     calc: "Cost Calculator",
+    reminders: "Maintenance Reminders",
+    "automation-history": "Sync History",
+    settings: "Settings",
+    // Commercial module redirects
+    products: "Product Catalogue",
     customers: "Customers",
     orders: "Orders",
     kyc: "Customer KYC",
@@ -824,33 +814,31 @@ function render() {
     invoices: "Invoices & Payments",
     expenses: "Expenses",
     reports: "Financial Reports",
-    reminders: "Reminders",
-    "automation-history": "Automation History",
-    accounts: "Accounts & Team",
-    settings: "Settings"
+    accounts: "Accounts & Team"
   };
   const tabCrumbs = {
-    dashboard: "OVERVIEW :",
-    products: "INVENTORY & PRODUCTION :",
-    filaments: "INVENTORY & PRODUCTION :",
-    stock: "INVENTORY & PRODUCTION :",
-    prints: "INVENTORY & PRODUCTION :",
-    calc: "INVENTORY & PRODUCTION :",
-    customers: "CUSTOMERS & SALES :",
-    orders: "CUSTOMERS & SALES :",
-    kyc: "CUSTOMERS & SALES :",
-    quotes: "CUSTOMERS & SALES :",
-    invoices: "FINANCE :",
-    expenses: "FINANCE :",
-    reports: "FINANCE :",
-    reminders: "AUTOMATION :",
-    "automation-history": "AUTOMATION :",
-    accounts: "STUDIO :",
-    settings: "STUDIO :"
+    dashboard: "MANUFACTURING :",
+    prints: "MANUFACTURING :",
+    filaments: "MANUFACTURING :",
+    stock: "MANUFACTURING :",
+    calc: "MANUFACTURING :",
+    reminders: "OPERATIONS :",
+    "automation-history": "OPERATIONS :",
+    settings: "OPERATIONS :",
+    // Commercial module crumbs
+    products: "BUSINESS SUITE :",
+    customers: "BUSINESS SUITE :",
+    orders: "BUSINESS SUITE :",
+    kyc: "BUSINESS SUITE :",
+    quotes: "BUSINESS SUITE :",
+    invoices: "BUSINESS SUITE :",
+    expenses: "BUSINESS SUITE :",
+    reports: "BUSINESS SUITE :",
+    accounts: "BUSINESS SUITE :"
   };
 
   $("#pageTitleText").textContent = tabTitles[tab] || "Dashboard";
-  $("#crumbText").textContent = tabCrumbs[tab] || "OVERVIEW :";
+  $("#crumbText").textContent = tabCrumbs[tab] || "MANUFACTURING :";
   if ($("#bizName")) $("#bizName").textContent = (st.bizName || "Print Studio").toUpperCase();
   if ($("#bizSub")) $("#bizSub").textContent = `0.20 mm layers · ${cur()}${st.phone ? " · " + st.phone : ""}`;
   syncThemeIcons();
@@ -859,22 +847,22 @@ function render() {
 
   const fn = {
     dashboard: vDash,
-    products: vProducts,
+    prints: vPrints,
     filaments: vFil,
     stock: vStock,
-    prints: vPrints,
     calc: vCalc,
-    customers: vCustomers,
-    orders: vOrders,
-    kyc: vKyc,
-    quotes: vQuotes,
-    invoices: vInv,
-    expenses: vExp,
-    reports: vReports,
     reminders: vReminders,
     "automation-history": vAutomationHistory,
-    accounts: vAcc,
-    settings: vSettings
+    settings: vSettings,
+    products: () => vRedirectModule("products", "Product Catalogue", "/admin/products"),
+    customers: () => vRedirectModule("customers", "Customers", "/admin/customers"),
+    orders: () => vRedirectModule("orders", "Orders", "/admin/orders"),
+    kyc: () => vRedirectModule("kyc", "Customer KYC", "/admin/customers"),
+    quotes: () => vRedirectModule("quotes", "Quotations", "/admin/quotations"),
+    invoices: () => vRedirectModule("invoices", "Invoices & Payments", "/admin/reports"),
+    expenses: () => vRedirectModule("expenses", "Expenses", "/admin/expenses"),
+    reports: () => vRedirectModule("reports", "Financial Reports", "/admin/reports"),
+    accounts: () => vRedirectModule("accounts", "Accounts & Team", "/admin/settings")
   }[tab] || vDash;
 
   const focusId = document.activeElement && document.activeElement.id;
@@ -1279,13 +1267,13 @@ function getPrintTimestamp(p) {
   if (!p) return 0;
   const raw = p.startTime || p.endTime || p.updatedAt || p.date;
   if (!raw) return 0;
-  if (typeof raw === "number") return raw < 1e11 ? raw * 1000 : raw;
+  if (typeof raw === "number") return raw > 0 ? (raw < 1e11 ? raw * 1000 : raw) : 0;
   const parsed = new Date(raw).getTime();
   if (!isNaN(parsed) && parsed > 0) return parsed;
   const parts = String(raw).split("-");
   if (parts.length === 3) {
     const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-    if (!isNaN(d.getTime())) return d.getTime();
+    if (!isNaN(d.getTime()) && d.getTime() > 0) return d.getTime();
   }
   return 0;
 }
@@ -1363,6 +1351,60 @@ function formatSmartFilament(grams, withSpace = true) {
   return `${formatted}${withSpace ? " " : ""}kg`;
 }
 
+/**
+ * Safe Display Normalization for Material Breakdown
+ *
+ * In Bambu Studio / Bambu Cloud telemetry:
+ * - p.grams represents the overall sliced print job weight (e.g. 511.8g).
+ * - p.filamentsUsed[].weightG contains per-slot telemetry from AMS slots (e.g. 511.7g).
+ * Minor rounding variances (0.1g) frequently occur between AMS slot telemetry and top-level slicer weights.
+ *
+ * Invariant Guarantees:
+ * 1. Non-destructive: Never mutates p.grams or p.filamentsUsed on the source record.
+ * 2. Proportional Scaling: When declared job grams (p.grams) and AMS slots both exist and differ slightly,
+ *    scales each slot proportionally so that the sum of materials displayed matches p.grams exactly.
+ * 3. Fallback Safety: Safely handles missing/empty filamentsUsed arrays, zero/missing weights,
+ *    and unmapped materials without NaN, division-by-zero, or exceptions.
+ */
+function getMaterialsForPrint(p) {
+  if (!p) return [{ mat: "PLA", weight: 0 }];
+  const totalGrams = N(p.grams);
+
+  if (p.filamentsUsed && Array.isArray(p.filamentsUsed) && p.filamentsUsed.length > 0) {
+    const rawItems = p.filamentsUsed.map(f => ({
+      mat: (f && f.type ? String(f.type) : "PLA").toUpperCase().trim(),
+      weight: N(f && f.weightG)
+    }));
+    const rawSum = rawItems.reduce((acc, item) => acc + item.weight, 0);
+
+    // If total declared weight differs slightly from raw sum of AMS slot weights,
+    // scale slot weights proportionally for display so that total material breakdown matches total print grams.
+    if (totalGrams > 0 && rawSum > 0 && Math.abs(rawSum - totalGrams) > 0.0001) {
+      const scale = totalGrams / rawSum;
+      return rawItems.map(item => ({
+        mat: item.mat,
+        weight: item.weight * scale
+      }));
+    } else if (totalGrams > 0 && rawSum === 0) {
+      // Slot weights were omitted: distribute totalGrams equally across declared slots
+      const perSlot = totalGrams / rawItems.length;
+      return rawItems.map(item => ({
+        mat: item.mat,
+        weight: perSlot
+      }));
+    }
+    return rawItems;
+  }
+
+  // Fallback when no AMS breakdown is available: use linked filament material or default to PLA
+  const fil = p.filamentId ? byId("filaments", p.filamentId) : null;
+  const matName = ((fil && fil.material) || "PLA").toUpperCase().trim();
+  return [{
+    mat: matName || "PLA",
+    weight: totalGrams
+  }];
+}
+
 function getProductionTimeSeries(range = chartRange) {
   const now = new Date();
   let labels = [];
@@ -1370,20 +1412,6 @@ function getProductionTimeSeries(range = chartRange) {
   let filamentGrams = [];
   let materialMap = {};
   const allFilteredPrints = getPrintsInTimeframe(range);
-
-  const getMaterialsForPrint = (p) => {
-    if (p.filamentsUsed && Array.isArray(p.filamentsUsed) && p.filamentsUsed.length > 0) {
-      return p.filamentsUsed.map(f => ({
-        mat: (f.type || "PLA").toUpperCase().trim(),
-        weight: N(f.weightG) > 0 ? N(f.weightG) : (N(p.grams) / p.filamentsUsed.length)
-      }));
-    }
-    const fil = byId("filaments", p.filamentId);
-    return [{
-      mat: ((fil && fil.material) || "PLA").toUpperCase().trim(),
-      weight: N(p.grams)
-    }];
-  };
 
   const activeMaterialsSet = new Set();
   allFilteredPrints.forEach(p => {
@@ -1395,18 +1423,22 @@ function getProductionTimeSeries(range = chartRange) {
   if (activeMaterials.length === 0) activeMaterials.push("PLA");
 
   if (range === "24h") {
-    labels = ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"];
+    // 6 chronological 4-hour intervals counting back from now
+    labels = [];
+    for (let k = 5; k >= 0; k--) {
+      const bucketStart = new Date(now.getTime() - (k + 1) * 4 * 3600 * 1000);
+      labels.push(String(bucketStart.getHours()).padStart(2, "0") + ":00");
+    }
     printHours = new Array(6).fill(0);
     filamentGrams = new Array(6).fill(0);
     activeMaterials.forEach(m => { materialMap[m] = new Array(6).fill(0); });
 
     allFilteredPrints.forEach(p => {
       const ts = getPrintTimestamp(p);
-      let b = 0;
-      if (ts > 0) {
-        const d = new Date(ts);
-        b = Math.min(5, Math.max(0, Math.floor(d.getHours() / 4)));
-      }
+      if (ts <= 0) return;
+      const hoursAgo = (now.getTime() - ts) / 36e5;
+      if (hoursAgo < 0) return;
+      const b = Math.min(5, Math.max(0, 5 - Math.floor(hoursAgo / 4)));
       const h = N(p.hours);
       const g = N(p.grams);
       printHours[b] += h;
@@ -1416,6 +1448,7 @@ function getProductionTimeSeries(range = chartRange) {
       });
     });
   } else if (range === "7d") {
+    // Calendar-day boundaries (midnight to midnight)
     const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     labels = [];
     for (let k = 6; k >= 0; k--) {
@@ -1426,10 +1459,16 @@ function getProductionTimeSeries(range = chartRange) {
     filamentGrams = new Array(7).fill(0);
     activeMaterials.forEach(m => { materialMap[m] = new Array(7).fill(0); });
 
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
     allFilteredPrints.forEach(p => {
       const ts = getPrintTimestamp(p);
-      const daysDiff = (now.getTime() - ts) / 864e5;
-      const b = Math.min(6, Math.max(0, 6 - Math.floor(daysDiff)));
+      if (ts <= 0) return;
+      const printDate = new Date(ts);
+      const printMidnight = new Date(printDate.getFullYear(), printDate.getMonth(), printDate.getDate()).getTime();
+      const calDaysDiff = Math.round((todayMidnight - printMidnight) / 864e5);
+      if (calDaysDiff < 0 || calDaysDiff > 6) return;
+      const b = 6 - calDaysDiff;
       const h = N(p.hours);
       const g = N(p.grams);
       printHours[b] += h;
@@ -1450,10 +1489,15 @@ function getProductionTimeSeries(range = chartRange) {
     filamentGrams = new Array(5).fill(0);
     activeMaterials.forEach(m => { materialMap[m] = new Array(5).fill(0); });
 
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
     allFilteredPrints.forEach(p => {
       const ts = getPrintTimestamp(p);
-      const daysDiff = (now.getTime() - ts) / 864e5;
-      const b = Math.min(4, Math.max(0, 4 - Math.floor(daysDiff / 6)));
+      if (ts <= 0) return;
+      const printDate = new Date(ts);
+      const printMidnight = new Date(printDate.getFullYear(), printDate.getMonth(), printDate.getDate()).getTime();
+      const calDaysDiff = Math.round((todayMidnight - printMidnight) / 864e5);
+      const b = Math.min(4, Math.max(0, 4 - Math.floor(calDaysDiff / 6)));
       const h = N(p.hours);
       const g = N(p.grams);
       printHours[b] += h;
@@ -1463,37 +1507,103 @@ function getProductionTimeSeries(range = chartRange) {
       });
     });
   } else {
-    // 12m or all: 12 rolling months
-    labels = [];
-    const keys = [];
-    for (let k = 11; k >= 0; k--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - k, 1);
-      const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
-      keys.push(key);
-      const mStr = d.toLocaleString("en-US", { month: "short" });
-      labels.push(d.getMonth() === 0 ? `${mStr} '${String(d.getFullYear()).slice(-2)}` : mStr);
-    }
-    printHours = new Array(12).fill(0);
-    filamentGrams = new Array(12).fill(0);
-    activeMaterials.forEach(m => { materialMap[m] = new Array(12).fill(0); });
+    // 12m or all:
+    const isAll = range === "all";
+    let useYearlyBuckets = false;
+    let oldestTs = now.getTime();
+    let hasValidPrints = false;
 
-    allFilteredPrints.forEach(p => {
-      const ts = getPrintTimestamp(p);
-      let b = 0;
-      if (ts > 0) {
+    if (isAll && allFilteredPrints.length > 0) {
+      allFilteredPrints.forEach(p => {
+        const ts = getPrintTimestamp(p);
+        if (ts > 0) {
+          hasValidPrints = true;
+          if (ts < oldestTs) oldestTs = ts;
+        }
+      });
+    }
+
+    const oldestDate = new Date(oldestTs);
+    const monthsSpan = hasValidPrints
+      ? (now.getFullYear() - oldestDate.getFullYear()) * 12 + (now.getMonth() - oldestDate.getMonth()) + 1
+      : 12;
+
+    // Use monthly buckets for shorter history (<= 24 months); switch to yearly buckets for multi-year history (> 24 months)
+    if (isAll && hasValidPrints && monthsSpan > 24) {
+      useYearlyBuckets = true;
+    }
+
+    if (useYearlyBuckets) {
+      const startYear = oldestDate.getFullYear();
+      const endYear = now.getFullYear();
+      const yearCount = endYear - startYear + 1;
+
+      labels = [];
+      for (let y = startYear; y <= endYear; y++) {
+        labels.push(String(y));
+      }
+
+      printHours = new Array(yearCount).fill(0);
+      filamentGrams = new Array(yearCount).fill(0);
+      activeMaterials.forEach(m => { materialMap[m] = new Array(yearCount).fill(0); });
+
+      allFilteredPrints.forEach(p => {
+        const ts = getPrintTimestamp(p);
+        if (ts <= 0) return;
+        const d = new Date(ts);
+        const y = d.getFullYear();
+        const b = Math.min(yearCount - 1, Math.max(0, y - startYear));
+        const h = N(p.hours);
+        const g = N(p.grams);
+        printHours[b] += h;
+        filamentGrams[b] += g;
+        getMaterialsForPrint(p).forEach(item => {
+          if (materialMap[item.mat]) materialMap[item.mat][b] += item.weight;
+        });
+      });
+    } else {
+      // Monthly buckets: min 12 rolling months, expanding to encompass all historical prints without arbitrary cap
+      const monthCount = isAll ? Math.max(12, monthsSpan) : 12;
+
+      labels = [];
+      const keys = [];
+      for (let k = monthCount - 1; k >= 0; k--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - k, 1);
+        const key = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+        keys.push(key);
+        const mStr = d.toLocaleString("en-US", { month: "short" });
+        labels.push(d.getMonth() === 0 ? `${mStr} '${String(d.getFullYear()).slice(-2)}` : mStr);
+      }
+
+      printHours = new Array(monthCount).fill(0);
+      filamentGrams = new Array(monthCount).fill(0);
+      activeMaterials.forEach(m => { materialMap[m] = new Array(monthCount).fill(0); });
+
+      allFilteredPrints.forEach(p => {
+        const ts = getPrintTimestamp(p);
+        if (ts <= 0) return;
         const d = new Date(ts);
         const pKey = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
         const idx = keys.indexOf(pKey);
-        b = idx !== -1 ? idx : 0;
-      }
-      const h = N(p.hours);
-      const g = N(p.grams);
-      printHours[b] += h;
-      filamentGrams[b] += g;
-      getMaterialsForPrint(p).forEach(item => {
-        if (materialMap[item.mat]) materialMap[item.mat][b] += item.weight;
+        let b = idx;
+        if (b === -1) {
+          if (isAll) {
+            // Never discard historical prints in ALL range
+            b = d.getTime() > now.getTime() ? monthCount - 1 : 0;
+          } else {
+            // Strictly 12m window
+            return;
+          }
+        }
+        const h = N(p.hours);
+        const g = N(p.grams);
+        printHours[b] += h;
+        filamentGrams[b] += g;
+        getMaterialsForPrint(p).forEach(item => {
+          if (materialMap[item.mat]) materialMap[item.mat][b] += item.weight;
+        });
       });
-    });
+    }
   }
 
   const totalPeriodHours = printHours.reduce((a, b) => a + b, 0);
@@ -1519,13 +1629,14 @@ function vDash() {
   const prevPrints = getPrintsInPreviousTimeframe(chartRange);
   const getMiniBars = (val, activeBars = [30, 60, 45, 95, 80]) => N(val) > 0 ? activeBars : [14, 14, 14, 14, 14];
 
-  // Phase 2 KPI 1: Total Products
+  // Phase 2 KPI 1: Active Models Printed (Filtered) / Total Products (All Time)
+  const isAllTime = chartRange === "all";
   const uniqueModelKeys = new Set();
   filteredPrints.forEach(p => {
     const key = p.productId || (p.note ? p.note.trim().toLowerCase() : null) || p.id;
     if (key) uniqueModelKeys.add(key);
   });
-  const totalProducts = chartRange === "all"
+  const totalProducts = isAllTime
     ? (S.products && S.products.length > 0 ? S.products.length : uniqueModelKeys.size)
     : uniqueModelKeys.size;
   const prevModelKeys = new Set();
@@ -1535,12 +1646,14 @@ function vDash() {
   });
   const prevTotalProducts = prevModelKeys.size;
   const trendProducts = calcTrend(totalProducts, prevTotalProducts, chartRange);
-  const productsSubtitle = chartRange === "all"
+  const productsCardTitle = isAllTime ? "Total Products" : "Active Models Printed";
+  const productsSubtitle = isAllTime
     ? `${S.products.length} models in catalog`
     : `${uniqueModelKeys.size} models active in period`;
 
   // Phase 2 KPI 2: Completed Jobs (Replacing misleading Printed Stock)
-  const completedJobs = filteredPrints.filter(p => p.statusLabel === "Success" || (!p.statusLabel && N(p.qty) > 0)).length;
+  const completedPrintsList = filteredPrints.filter(p => p.statusLabel === "Success" || (!p.statusLabel && N(p.qty) > 0));
+  const completedJobs = completedPrintsList.length;
   const prevCompletedJobs = prevPrints.filter(p => p.statusLabel === "Success" || (!p.statusLabel && N(p.qty) > 0)).length;
   const trendCompleted = calcTrend(completedJobs, prevCompletedJobs, chartRange);
   const canceledCount = filteredPrints.reduce((acc, p) => acc + (p.statusLabel === "Canceled" || p.statusLabel === "Failed" || (!p.statusLabel && N(p.failed) > 0) ? 1 : 0), 0);
@@ -1565,24 +1678,18 @@ function vDash() {
     }
   }
 
-  // Phase 2 KPI 4: Filament Used
+  // Phase 2 KPI 4: Filament Used (Reconciled with material breakdown)
   const totalGramsUsed = filteredPrints.reduce((acc, p) => acc + N(p.grams), 0);
   const prevGramsUsed = prevPrints.reduce((acc, p) => acc + N(p.grams), 0);
   const trendFilament = calcTrend(totalGramsUsed, prevGramsUsed, chartRange);
   const filamentDisplay = formatSmartFilament(totalGramsUsed, true);
   const matMap = {};
   filteredPrints.forEach(p => {
-    if (p.filamentsUsed && Array.isArray(p.filamentsUsed) && p.filamentsUsed.length > 0) {
-      p.filamentsUsed.forEach(f => {
-        const m = (f.type || "PLA").toUpperCase().trim();
-        const w = N(f.weightG) > 0 ? N(f.weightG) : (N(p.grams) / p.filamentsUsed.length);
-        matMap[m] = (matMap[m] || 0) + w;
-      });
-    } else {
-      const fil = byId("filaments", p.filamentId);
-      const m = ((fil && fil.material) || "PLA").toUpperCase().trim();
-      matMap[m] = (matMap[m] || 0) + N(p.grams);
-    }
+    getMaterialsForPrint(p).forEach(item => {
+      if (item.mat) {
+        matMap[item.mat] = (matMap[item.mat] || 0) + item.weight;
+      }
+    });
   });
   const sortedMats = Object.entries(matMap)
     .filter(([_, g]) => g > 0)
@@ -1591,13 +1698,27 @@ function vDash() {
     ? "No filament recorded"
     : sortedMats.slice(0, 2).map(([m, g]) => `${m}: ${formatSmartFilament(g, false)}`).join(" • ");
 
-  // Phase 2 KPI 5: Total Print Time
+  // Phase 2 KPI 5: Total Print Time & Duration Breakdown
   const totalHours = filteredPrints.reduce((acc, p) => acc + N(p.hours), 0);
   const prevTotalHours = prevPrints.reduce((acc, p) => acc + N(p.hours), 0);
   const trendHours = calcTrend(totalHours, prevTotalHours, chartRange);
   const totalHoursDisplay = `${totalHours.toFixed(1)} hrs`;
-  const avgHours = filteredPrints.length > 0 ? (totalHours / filteredPrints.length).toFixed(1) : "0.0";
-  const periodHoursSubtitle = `${avgHours} hrs avg per print`;
+
+  const completedHours = completedPrintsList.reduce((acc, p) => acc + N(p.hours), 0);
+  const failedHours = Math.max(0, totalHours - completedHours);
+  const avgCompletedHours = completedJobs > 0 ? (completedHours / completedJobs).toFixed(1) : null;
+  const avgAttemptHours = totalPrintJobs > 0 ? (totalHours / totalPrintJobs).toFixed(1) : "0.0";
+
+  let periodHoursSubtitle = "No print hours in period";
+  if (totalPrintJobs > 0) {
+    if (avgCompletedHours && totalPrintJobs > completedJobs) {
+      periodHoursSubtitle = `${avgCompletedHours}h completed avg • ${avgAttemptHours}h attempt avg`;
+    } else if (avgCompletedHours) {
+      periodHoursSubtitle = `${avgCompletedHours} hrs avg per print`;
+    } else {
+      periodHoursSubtitle = `${avgAttemptHours} hrs avg per attempt`;
+    }
+  }
 
   // Phase 3: Production Overview data (100% matched to filtered prints metrics)
   const prodSeries = getProductionTimeSeries(chartRange);
@@ -1616,10 +1737,14 @@ function vDash() {
     filamentGramsUnit = "kg";
   }
 
+  const printTimeSubtitle = totalPrintJobs > 0 && failedHours > 0.05
+    ? `${completedHours.toFixed(1)}h productive • ${failedHours.toFixed(1)}h aborted/failed`
+    : `Duration trend (hours) across ${periodLabel.toLowerCase()}`;
+
   return `
   <!-- Phase 2: 5 3D Printing Studio KPI Cards -->
   <div class="dashboard-kpi-grid">
-    ${pastelCard("mint", APP_ICONS.metricProducts, "Total Products", m0(totalProducts), productsSubtitle, getMiniBars(totalProducts, [35, 60, 45, 80, 95]), trendProducts)}
+    ${pastelCard("mint", APP_ICONS.metricProducts, productsCardTitle, m0(totalProducts), productsSubtitle, getMiniBars(totalProducts, [35, 60, 45, 80, 95]), trendProducts)}
     ${pastelCard("coral", APP_ICONS.metricStock, "Completed Jobs", m0(completedJobs), completedSubtitle, getMiniBars(completedJobs, [60, 40, 75, 50, 85]), trendCompleted)}
     ${pastelCard("lavender", APP_ICONS.metricPrinted, "Total Print Jobs", m0(totalPrintJobs), periodJobsSubtitle, getMiniBars(totalPrintJobs, [25, 45, 35, 75, 60]), trendPrintJobs)}
     ${pastelCard("lime", APP_ICONS.metricFilament, "Filament Used", filamentDisplay, filamentSubtitle, getMiniBars(totalGramsUsed, [30, 50, 40, 85, 70]), trendFilament)}
@@ -1644,7 +1769,7 @@ function vDash() {
             <div class="chart-card-icon mint">${APP_ICONS.metricTime(18, 2)}</div>
             <div>
               <h3 class="chart-card-title">Print Time</h3>
-              <p class="chart-card-subtitle">Duration trend (hours) across ${periodLabel.toLowerCase()}</p>
+              <p class="chart-card-subtitle">${printTimeSubtitle}</p>
             </div>
           </div>
           <div class="chart-card-stat">
