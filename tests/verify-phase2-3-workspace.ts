@@ -120,7 +120,6 @@ async function runPhase23Verification() {
       { path: '/admin/orders', expectedRedirect: '/login?redirect=%2Fadmin%2Forders' },
       { path: '/admin/enquiries', expectedRedirect: '/login?redirect=%2Fadmin%2Fenquiries' },
       { path: '/admin/customers', expectedRedirect: '/login?redirect=%2Fadmin%2Fcustomers' },
-      { path: '/admin/expenses', expectedRedirect: '/login?redirect=%2Fadmin%2Fexpenses' },
       { path: '/admin/reports', expectedRedirect: '/login?redirect=%2Fadmin%2Freports' },
       { path: '/admin/settings', expectedRedirect: '/login?redirect=%2Fadmin%2Fsettings' },
     ];
@@ -311,7 +310,6 @@ async function runPhase23Verification() {
       { path: '/admin/orders', title: 'Commercial Orders' },
       { path: '/admin/enquiries', title: 'Customer Enquiries' },
       { path: '/admin/customers', title: 'Customer Directory' },
-      { path: '/admin/expenses', title: 'Business Expenses' },
       { path: '/admin/reports', title: 'Financial and Production Reports' },
       { path: '/admin/settings', title: 'Commercial Settings' },
     ];

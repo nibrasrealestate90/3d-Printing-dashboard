@@ -10,7 +10,6 @@ import {
   Invoice01Icon,
   Mail01Icon,
   UserMultiple02Icon,
-  CreditCardIcon,
   Analytics01Icon,
   Settings01Icon,
   PrinterIcon,
@@ -56,7 +55,6 @@ const SALES_NAV_ITEMS: NavItem[] = [
 ];
 
 const FINANCE_STORE_NAV_ITEMS: NavItem[] = [
-  { path: "/admin/expenses", label: "Expenses", icon: CreditCardIcon },
   { path: "/admin/reports", label: "Reports", icon: Analytics01Icon },
   { path: "/admin/instagram", label: "Instagram", icon: InstagramIcon },
   { path: "/admin/media", label: "Media Library", icon: Image01Icon },
