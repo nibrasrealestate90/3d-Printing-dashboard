@@ -201,7 +201,7 @@ runTest('Application Shell: Clean sidebar with workspace switcher, no profile fo
 // ----------------------------------------------------------------------------
 // Test 4: Business Management Overview Dashboard
 // ----------------------------------------------------------------------------
-runTest('Overview Page: Executive layout, operational metrics, and quick actions', () => {
+runTest('Overview Page: Simplified store administration dashboard', () => {
   const pagePath = path.join(ROOT_DIR, 'src/app/admin/page.tsx');
   assert.ok(fs.existsSync(pagePath), 'admin/page.tsx must exist');
   const content = fs.readFileSync(pagePath, 'utf-8');
@@ -219,12 +219,40 @@ runTest('Overview Page: Executive layout, operational metrics, and quick actions
     'Overview must not contain the decorative hero banner box'
   );
   assert.ok(
+    !content.includes('Bambu Factory Engine'),
+    'Overview must not contain Bambu Factory Engine card'
+  );
+  assert.ok(
+    !content.includes('Studio Fulfillment Pipeline'),
+    'Overview must not contain Studio Fulfillment Pipeline'
+  );
+  assert.ok(
+    !content.includes('Commercial Storefront'),
+    'Overview must not contain Commercial Storefront promo card'
+  );
+  assert.ok(
+    !content.includes('Operational Shortcuts'),
+    'Overview must not contain Operational Shortcuts'
+  );
+  assert.ok(
     content.includes('bm-metrics-grid'),
     'Overview must contain operational metrics grid at top of viewport'
   );
   assert.ok(
-    content.includes('bm-dashboard-grid'),
-    'Overview must contain two-column operational dashboard grid'
+    content.includes('Total Orders'),
+    'Overview must display Total Orders KPI card'
+  );
+  assert.ok(
+    content.includes('Total Revenue'),
+    'Overview must display Total Revenue KPI card'
+  );
+  assert.ok(
+    content.includes('Total Products'),
+    'Overview must display Total Products KPI card'
+  );
+  assert.ok(
+    content.includes('Recent Orders'),
+    'Overview must display Recent Orders section'
   );
 });
 

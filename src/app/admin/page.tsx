@@ -5,110 +5,162 @@ import { BusinessWorkspaceLayout } from "@/components/admin/BusinessWorkspaceLay
 import { sql } from "@/lib/db";
 import {
   PackageIcon,
-  Mail01Icon,
-  Calculator01Icon,
-  PrinterIcon,
+  Invoice01Icon,
+  CreditCardIcon,
   ArrowRight01Icon,
-  CheckmarkCircle02Icon,
-  PlusSignIcon,
-  Image01Icon,
-  InstagramIcon,
-  Layers01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeIcon } from "@/components/hugeIcons";
 import { MetricCard } from "@/components/admin/ui/MetricCard";
 import { StatusBadge } from "@/components/admin/ui/StatusBadge";
+import { EmptyState } from "@/components/admin/ui/EmptyState";
 
-interface ActivityItem {
+interface RecentOrder {
   id: string;
-  type: "enquiry" | "quote" | "product";
-  title: string;
-  customerOrMeta: string;
-  status: string;
+  invoiceNumber: string;
+  customerName: string;
+  amountAed: number;
+  paymentStatus: string;
   date: string;
-  href: string;
+  sortTimestamp: number;
 }
 
+/**
+ * Commercial Workspace Overview Dashboard
+ * Displays essential store administration metrics:
+ * 1. Total Orders (valid commercial sales)
+ * 2. Total Revenue (billed sales volume in AED)
+ * 3. Total Products (commercial catalog count)
+ * 4. Recent Orders (latest 5 commercial sales orders)
+ */
 export default async function AdminOverviewPage() {
   const auth = await verifyServerSession();
 
-  let enquiriesCount = 0;
-  let pendingQuotesCount = 0;
-  let productsCount = 0;
+  let totalOrdersCount = 0;
+  let totalRevenueBilled = 0;
+  let totalProductsCount = 0;
   let publishedProductsCount = 0;
-  let recentActivities: ActivityItem[] = [];
+  let recentOrders: RecentOrder[] = [];
 
   if (sql) {
     try {
-      // 1. Enquiries count & recent entries
-      const enqRows = await sql`
-        SELECT id, customer_name, subject, status, created_at 
-        FROM public.store_enquiries 
-        ORDER BY created_at DESC 
-        LIMIT 4;
-      `.catch(() => []);
-
-      const enqTotal = await sql`
-        SELECT count(*)::int as count FROM public.store_enquiries;
-      `.catch(() => [{ count: 0 }]);
-
-      enquiriesCount = Number(enqTotal[0]?.count || 0);
-
-      enqRows.forEach((r: any) => {
-        recentActivities.push({
-          id: `enq-${r.id}`,
-          type: "enquiry",
-          title: r.subject || "Customer Inquiry",
-          customerOrMeta: r.customer_name || "Prospective Client",
-          status: r.status || "NEW",
-          date: r.created_at ? new Date(r.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "Recent",
-          href: "/admin/enquiries",
-        });
-      });
-    } catch {
-      // Graceful fallback
-    }
-
-    try {
-      // 2. Quotes count & recent entries
-      const quoteRows = await sql`
-        SELECT id, rfq_reference, customer_name, project_title, status, created_at 
-        FROM public.store_quotes 
-        ORDER BY created_at DESC 
-        LIMIT 4;
-      `.catch(() => []);
-
-      const quoteTotal = await sql`
-        SELECT count(*)::int as count FROM public.store_quotes;
-      `.catch(() => [{ count: 0 }]);
-
-      pendingQuotesCount = Number(quoteTotal[0]?.count || 0);
-
-      quoteRows.forEach((r: any) => {
-        recentActivities.push({
-          id: `quote-${r.id}`,
-          type: "quote",
-          title: r.project_title || r.rfq_reference || "Custom CAD Print RFQ",
-          customerOrMeta: r.customer_name || "Client RFQ",
-          status: r.status || "PENDING_REVIEW",
-          date: r.created_at ? new Date(r.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "Recent",
-          href: "/admin/quotations",
-        });
-      });
-    } catch {
-      // Graceful fallback
-    }
-
-    try {
-      // 3. Products in ledger_collections
+      // 1. Fetch products from ledger_collections
       const productRows = await sql`
-        SELECT data FROM ledger_collections WHERE collection_name = 'products';
+        SELECT record_id, data
+        FROM public.ledger_collections
+        WHERE collection_name = 'products';
       `.catch(() => []);
 
-      productsCount = productRows.length;
-      publishedProductsCount = productRows.filter((r: any) => r.data?.published).length;
+      totalProductsCount = productRows.length;
+      publishedProductsCount = productRows.filter((r: any) => Boolean(r.data?.published)).length;
     } catch {
-      // Graceful fallback
+      // Graceful error fallback
+    }
+
+    try {
+      // 2. Fetch commercial invoices from ledger_collections
+      const invoiceRows = await sql`
+        SELECT record_id, data, updated_at
+        FROM public.ledger_collections
+        WHERE collection_name = 'invoices'
+        ORDER BY updated_at DESC;
+      `.catch(() => []);
+
+      const validSalesOrders: RecentOrder[] = [];
+
+      for (const row of invoiceRows) {
+        const d = (row.data && typeof row.data === "object") ? row.data : {};
+
+        // Invariant: Exclude voided invoices
+        const status = String(d.status || "").toLowerCase().trim();
+        if (status === "void") continue;
+
+        // Invariant: Exclude price quotations and Free-of-Charge (FOC) vouchers
+        const type = String(d.type || "").toLowerCase().trim();
+        if (type === "quote" || type === "foc") continue;
+
+        // Valid sales order if type is explicitly 'sale' or omitted (legacy default)
+        if (type !== "sale" && type !== "") continue;
+
+        totalOrdersCount += 1;
+
+        // Total Revenue: sum of valid commercial sales invoice totals, including VAT where stored or computed
+        let orderTotal = 0;
+        if (d.total != null && d.total !== "" && !isNaN(Number(d.total))) {
+          orderTotal = Number(d.total);
+        } else if (d.amount != null && d.amount !== "" && !isNaN(Number(d.amount))) {
+          orderTotal = Number(d.amount);
+        } else if (Array.isArray(d.lines) && d.lines.length > 0) {
+          // Dynamic calculation from line items for legacy invoice structures (matches stored total definition)
+          const sub = d.lines.reduce((acc: number, l: any) => {
+            const qty = Number(l.qty) || 0;
+            const price = Number(l.price) || 0;
+            return acc + (qty * price);
+          }, 0);
+          const disc = Math.min(sub, Math.max(0, Number(d.discount) || 0));
+          const vatPct = Number(d.vatPct ?? 5) || 0;
+          const vat = ((sub - disc) * vatPct) / 100;
+          orderTotal = sub - disc + vat;
+        }
+
+        if (orderTotal > 0) {
+          totalRevenueBilled += orderTotal;
+        }
+
+        // Build recent order item (strictly no fabricated names or numbers)
+        const rawInvNo = String(d.number || d.invoiceNumber || d.no || "").trim();
+        const invNo = rawInvNo || "—";
+
+        const rawCustomer = String(d.customerName || d.clientName || d.customer || "").trim();
+        const customer = rawCustomer || "—";
+
+        // Payment status: In ledgerCore data contract, d.status is invoice document lifecycle ("issued" | "void").
+        // Check dedicated paymentStatus fields or safely derive payment status from paid vs orderTotal.
+        let paymentStatus = "—";
+        const explicitPayStatus = String(d.paymentStatus || d.payment_status || "").toUpperCase().trim();
+        const rawStatus = String(d.status || "").toUpperCase().trim();
+
+        if (["PAID", "PENDING", "PARTIAL", "UNPAID"].includes(explicitPayStatus)) {
+          paymentStatus = explicitPayStatus === "UNPAID" ? "PENDING" : explicitPayStatus;
+        } else if (["PAID", "PENDING", "PARTIAL", "UNPAID"].includes(rawStatus)) {
+          paymentStatus = rawStatus === "UNPAID" ? "PENDING" : rawStatus;
+        } else if (d.paid != null && d.paid !== "" && !isNaN(Number(d.paid))) {
+          const paid = Number(d.paid);
+          if (orderTotal > 0 && paid >= orderTotal - 0.005) {
+            paymentStatus = "PAID";
+          } else if (paid > 0 && paid < orderTotal - 0.005) {
+            paymentStatus = "PARTIAL";
+          } else if (orderTotal > 0) {
+            paymentStatus = "PENDING";
+          }
+        }
+
+        const rawDate = d.date
+          ? String(d.date)
+          : (row.updated_at ? new Date(row.updated_at).toISOString().split("T")[0] : "");
+        const sortTimestamp = d.date
+          ? new Date(d.date).getTime()
+          : (row.updated_at ? new Date(row.updated_at).getTime() : 0);
+        const formattedDate = rawDate
+          ? new Date(rawDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+          : "—";
+
+        validSalesOrders.push({
+          id: String(row.record_id || d.id || invNo),
+          invoiceNumber: invNo,
+          customerName: customer,
+          amountAed: orderTotal,
+          paymentStatus,
+          date: formattedDate,
+          sortTimestamp,
+        });
+      }
+
+      // Sort newest first, top 5
+      recentOrders = validSalesOrders
+        .sort((a, b) => b.sortTimestamp - a.sortTimestamp)
+        .slice(0, 5);
+    } catch {
+      // Graceful error fallback
     }
   }
 
@@ -119,315 +171,123 @@ export default async function AdminOverviewPage() {
       title="Overview"
       breadcrumbs="Business Management"
     >
-      {/* KPI Cards Grid */}
-      <section className="bm-metrics-grid" aria-label="Key Operational Indicators">
+      {/* 1. KPI Summary Cards Grid */}
+      <section
+        className="bm-metrics-grid"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: "16px",
+        }}
+        aria-label="Commercial Summary Metrics"
+      >
         <MetricCard
-          label="Active Enquiries"
-          value={enquiriesCount}
-          subtext="Storefront client communications"
-          icon={Mail01Icon}
+          label="Total Orders"
+          value={totalOrdersCount}
+          subtext="Confirmed commercial sales orders"
+          icon={Invoice01Icon}
           variant="mint"
         />
 
         <MetricCard
-          label="Pending Quotations"
-          value={pendingQuotesCount}
-          subtext="CAD RFQ engineering pipeline"
-          icon={Calculator01Icon}
+          label="Total Revenue"
+          value={`AED ${totalRevenueBilled.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          subtext="Billed commercial sales volume"
+          icon={CreditCardIcon}
           variant="coral"
         />
 
         <MetricCard
-          label="Commercial Products"
-          value={productsCount}
+          label="Total Products"
+          value={totalProductsCount}
           subtext={`${publishedProductsCount} published on storefront`}
           icon={PackageIcon}
           variant="lavender"
         />
-
-        <MetricCard
-          label="Bambu Factory Engine"
-          value="Operational"
-          subtext="Bambu Cloud MQTT telemetry active"
-          icon={PrinterIcon}
-          variant="accent"
-        />
       </section>
 
-      {/* Two-Column Operational Dashboard Layout */}
-      <section className="bm-dashboard-grid" aria-label="Operational Activity and Storefront Summary">
-        {/* Left Column: Recent Activity Feed (65%) */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div className="bm-card">
-            <div className="bm-card-header">
-              <div>
-                <h2 className="bm-card-title">Recent Commercial Activity</h2>
-                <p className="bm-card-subtitle">Latest incoming enquiries and quotation requests</p>
-              </div>
-              <Link href="/admin/enquiries" className="bm-card-action-btn">
-                <span>View Inbox</span>
-                <HugeIcon icon={ArrowRight01Icon} size={12} strokeWidth={2} />
-              </Link>
+      {/* 2. Recent Commercial Orders Section */}
+      <section style={{ marginTop: "24px" }} aria-label="Recent Commercial Orders">
+        <div className="bm-card">
+          <div className="bm-card-header">
+            <div>
+              <h2 className="bm-card-title">Recent Orders</h2>
+              <p className="bm-card-subtitle">Latest confirmed sales invoices and commercial orders</p>
             </div>
+            <Link href="/admin/orders" className="bm-card-action-btn">
+              <span>View All Orders</span>
+              <HugeIcon icon={ArrowRight01Icon} size={12} strokeWidth={2} />
+            </Link>
+          </div>
 
-            {recentActivities.length === 0 ? (
-              <div
-                style={{
-                  padding: "36px 20px",
-                  textAlign: "center",
-                  background: "var(--bm-surface-muted)",
-                  borderRadius: "var(--bm-radius-md)",
-                  border: "1px dashed var(--bm-border-strong)",
-                }}
-              >
-                <p style={{ fontSize: "14px", fontWeight: 600, color: "var(--bm-text-primary)", margin: "0 0 4px 0" }}>
-                  Awaiting Inbound Requests
-                </p>
-                <p style={{ fontSize: "12px", color: "var(--bm-text-secondary)", margin: 0 }}>
-                  Customer enquiries and custom CAD quote requests submitted on the public storefront will appear here live.
-                </p>
-              </div>
-            ) : (
-              <div className="bm-table-container">
-                <table className="bm-table">
-                  <thead>
-                    <tr>
-                      <th>Type</th>
-                      <th>Subject / Project</th>
-                      <th>Client</th>
-                      <th>Status</th>
-                      <th>Date</th>
-                      <th style={{ textAlign: "right" }}>Action</th>
+          {recentOrders.length === 0 ? (
+            <EmptyState
+              icon={Invoice01Icon}
+              title="No Commercial Orders Yet"
+              description="When commercial sales invoices are logged or storefront orders are placed, the latest sales orders will appear here."
+              actionText="Manage Commercial Orders"
+              actionHref="/admin/orders"
+              badge="READY FOR ORDERS"
+            />
+          ) : (
+            <div className="bm-table-container">
+              <table className="bm-table">
+                <thead>
+                  <tr>
+                    <th>Invoice / Order Number</th>
+                    <th>Customer</th>
+                    <th>Amount (AED)</th>
+                    <th>Payment Status</th>
+                    <th>Order Date</th>
+                    <th style={{ textAlign: "right" }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentOrders.map((order) => (
+                    <tr key={order.id}>
+                      <td>
+                        <span
+                          style={{
+                            fontFamily: "var(--bm-font-mono)",
+                            fontWeight: 700,
+                            fontSize: "12px",
+                            color: "var(--bm-accent)",
+                          }}
+                        >
+                          {order.invoiceNumber}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 600, color: "var(--bm-text-primary)" }}>
+                        {order.customerName}
+                      </td>
+                      <td style={{ fontWeight: 700, color: "var(--bm-text-primary)" }}>
+                        AED {order.amountAed.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td>
+                        <StatusBadge status={order.paymentStatus} />
+                      </td>
+                      <td style={{ fontSize: "12px", color: "var(--bm-text-muted)", whiteSpace: "nowrap" }}>
+                        {order.date}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <Link
+                          href="/admin/orders"
+                          style={{
+                            fontSize: "12px",
+                            color: "var(--bm-accent)",
+                            textDecoration: "none",
+                            fontWeight: 600,
+                          }}
+                        >
+                          Details →
+                        </Link>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {recentActivities.map((item) => (
-                      <tr key={item.id}>
-                        <td>
-                          <span
-                            style={{
-                              fontSize: "11px",
-                              fontWeight: 700,
-                              textTransform: "uppercase",
-                              letterSpacing: "0.04em",
-                              color: item.type === "quote" ? "var(--bm-accent)" : "var(--bm-info)",
-                            }}
-                          >
-                            {item.type === "quote" ? "CAD RFQ" : "Enquiry"}
-                          </span>
-                        </td>
-                        <td style={{ fontWeight: 600, color: "var(--bm-text-primary)" }}>{item.title}</td>
-                        <td style={{ color: "var(--bm-text-secondary)" }}>{item.customerOrMeta}</td>
-                        <td>
-                          <StatusBadge status={item.status} />
-                        </td>
-                        <td style={{ fontSize: "12px", color: "var(--bm-text-muted)" }}>{item.date}</td>
-                        <td style={{ textAlign: "right" }}>
-                          <Link
-                            href={item.href}
-                            style={{
-                              fontSize: "12px",
-                              color: "var(--bm-accent)",
-                              textDecoration: "none",
-                              fontWeight: 600,
-                            }}
-                          >
-                            Review →
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Operational Workflow Card */}
-          <div className="bm-card">
-            <h2 className="bm-card-title" style={{ marginBottom: "12px" }}>
-              Studio Fulfillment Pipeline
-            </h2>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: "12px",
-              }}
-            >
-              <div style={{ background: "var(--bm-surface-muted)", padding: "14px", borderRadius: "var(--bm-radius-md)", border: "1px solid var(--bm-border)" }}>
-                <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--bm-text-muted)", textTransform: "uppercase" }}>Stage 1</span>
-                <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--bm-text-primary)", margin: "4px 0" }}>Inbound RFQ</p>
-                <p style={{ fontSize: "11px", color: "var(--bm-text-secondary)", margin: 0 }}>Review customer specifications and CAD files</p>
-              </div>
-
-              <div style={{ background: "var(--bm-surface-muted)", padding: "14px", borderRadius: "var(--bm-radius-md)", border: "1px solid var(--bm-border)" }}>
-                <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--bm-text-muted)", textTransform: "uppercase" }}>Stage 2</span>
-                <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--bm-text-primary)", margin: "4px 0" }}>Price Quotation</p>
-                <p style={{ fontSize: "11px", color: "var(--bm-text-secondary)", margin: 0 }}>Calculate filament cost, machine time & margin</p>
-              </div>
-
-              <div style={{ background: "var(--bm-surface-muted)", padding: "14px", borderRadius: "var(--bm-radius-md)", border: "1px solid var(--bm-border)" }}>
-                <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--bm-text-muted)", textTransform: "uppercase" }}>Stage 3</span>
-                <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--bm-text-primary)", margin: "4px 0" }}>Bambu Print Queue</p>
-                <p style={{ fontSize: "11px", color: "var(--bm-text-secondary)", margin: 0 }}>Dispatch print task to X1C/P1S factory printers</p>
-              </div>
-
-              <div style={{ background: "var(--bm-surface-muted)", padding: "14px", borderRadius: "var(--bm-radius-md)", border: "1px solid var(--bm-border)" }}>
-                <span style={{ fontSize: "11px", fontWeight: 700, color: "var(--bm-text-muted)", textTransform: "uppercase" }}>Stage 4</span>
-                <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--bm-text-primary)", margin: "4px 0" }}>Client Delivery</p>
-                <p style={{ fontSize: "11px", color: "var(--bm-text-secondary)", margin: 0 }}>Quality inspection, tax invoice & UAE courier dispatch</p>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
-        </div>
-
-        {/* Right Column: Storefront Status & Quick Actions (35%) */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          {/* Storefront Overview Card */}
-          <div className="bm-card">
-            <div className="bm-card-header">
-              <div>
-                <h2 className="bm-card-title">Commercial Storefront</h2>
-                <p className="bm-card-subtitle">Public digital presence and catalog health</p>
-              </div>
-              <span className="bm-badge bm-badge-success">
-                <span className="bm-badge-dot" />
-                Live in UAE
-              </span>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "12px",
-                  background: "var(--bm-surface-muted)",
-                  borderRadius: "var(--bm-radius-md)",
-                  border: "1px solid var(--bm-border)",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "var(--bm-accent-soft)", color: "var(--bm-accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <HugeIcon icon={PackageIcon} size={16} />
-                  </div>
-                  <div>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--bm-text-primary)", display: "block" }}>
-                      Catalog Products
-                    </span>
-                    <span style={{ fontSize: "11px", color: "var(--bm-text-muted)" }}>
-                      {publishedProductsCount} active out of {productsCount}
-                    </span>
-                  </div>
-                </div>
-                <Link href="/admin/products" className="bm-btn bm-btn-secondary" style={{ padding: "5px 12px", fontSize: "11px" }}>
-                  Manage
-                </Link>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "12px",
-                  background: "var(--bm-surface-muted)",
-                  borderRadius: "var(--bm-radius-md)",
-                  border: "1px solid var(--bm-border)",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "var(--bm-pastel-pink)", color: "#9D174D", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <HugeIcon icon={InstagramIcon} size={16} />
-                  </div>
-                  <div>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--bm-text-primary)", display: "block" }}>
-                      Instagram Showcase
-                    </span>
-                    <span style={{ fontSize: "11px", color: "var(--bm-text-muted)" }}>
-                      Curated store gallery
-                    </span>
-                  </div>
-                </div>
-                <Link href="/admin/instagram" className="bm-btn bm-btn-secondary" style={{ padding: "5px 12px", fontSize: "11px" }}>
-                  Curate
-                </Link>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "12px",
-                  background: "var(--bm-surface-muted)",
-                  borderRadius: "var(--bm-radius-md)",
-                  border: "1px solid var(--bm-border)",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "var(--bm-pastel-lavender)", color: "#3730A3", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <HugeIcon icon={Image01Icon} size={16} />
-                  </div>
-                  <div>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--bm-text-primary)", display: "block" }}>
-                      Cloudflare R2 Media
-                    </span>
-                    <span style={{ fontSize: "11px", color: "var(--bm-text-muted)" }}>
-                      High-resolution render assets
-                    </span>
-                  </div>
-                </div>
-                <Link href="/admin/media" className="bm-btn bm-btn-secondary" style={{ padding: "5px 12px", fontSize: "11px" }}>
-                  Library
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Actions Shortcuts */}
-          <div className="bm-card">
-            <h2 className="bm-card-title" style={{ marginBottom: "12px" }}>
-              Operational Shortcuts
-            </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <Link
-                href="/admin/products"
-                className="bm-btn bm-btn-primary"
-                style={{ width: "100%", justifyContent: "flex-start", boxSizing: "border-box" }}
-              >
-                <HugeIcon icon={PlusSignIcon} size={16} strokeWidth={2} />
-                <span>Create Commercial Product</span>
-              </Link>
-
-              <Link
-                href="/admin/quotations"
-                className="bm-btn bm-btn-secondary"
-                style={{ width: "100%", justifyContent: "flex-start", boxSizing: "border-box" }}
-              >
-                <HugeIcon icon={Calculator01Icon} size={16} strokeWidth={2} />
-                <span>Review Pending RFQ Quotes</span>
-              </Link>
-
-              <Link
-                href="/admin/production"
-                className="bm-btn bm-btn-secondary"
-                style={{
-                  width: "100%",
-                  justifyContent: "flex-start",
-                  boxSizing: "border-box",
-                  borderColor: "var(--bm-accent)",
-                  color: "var(--bm-accent)",
-                  background: "var(--bm-accent-soft)",
-                }}
-              >
-                <HugeIcon icon={PrinterIcon} size={16} strokeWidth={2} />
-                <span>Open Bambu Production Workspace →</span>
-              </Link>
-            </div>
-          </div>
+          )}
         </div>
       </section>
     </BusinessWorkspaceLayout>
