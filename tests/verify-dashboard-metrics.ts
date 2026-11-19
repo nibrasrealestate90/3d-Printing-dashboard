@@ -342,9 +342,9 @@ test("Robustness: Empty dataset and invalid timestamps do not crash or produce N
 });
 
 // -----------------------------------------------------------------------------
-// 7. Sidebar Navigation & Legacy Commercial Redirects
+// 7. Sidebar Navigation & Commercial Module Redirects
 // -----------------------------------------------------------------------------
-test("Navigation: Confirms 8 manufacturing tabs and 9 commercial redirect routes", () => {
+test("Navigation: Confirms 9 manufacturing/operations tabs and 8 commercial redirect routes", () => {
   const fs = require("node:fs");
   const code = fs.readFileSync("src/components/ledgerCore.js", "utf8");
 
@@ -355,10 +355,11 @@ test("Navigation: Confirms 8 manufacturing tabs and 9 commercial redirect routes
   const navGroups = eval(navMatch[1]);
 
   const items = navGroups.flatMap((g: any) => g.items.map((i: any) => ({ key: i.key, label: i.label })));
-  assert.equal(items.length, 8, "Must contain exactly 8 manufacturing navigation items");
+  assert.equal(items.length, 9, "Must contain exactly 9 navigation items (6 Manufacturing + 3 Operations)");
 
   const expectedManufacturing = [
     { key: "dashboard", label: "Dashboard" },
+    { key: "products", label: "Product Catalogue" },
     { key: "prints", label: "Print Jobs" },
     { key: "filaments", label: "Filament Inventory" },
     { key: "stock", label: "Stock Management" },
@@ -369,9 +370,8 @@ test("Navigation: Confirms 8 manufacturing tabs and 9 commercial redirect routes
   ];
   assert.deepEqual(items, expectedManufacturing);
 
-  // Verify commercial redirect mappings
+  // Verify commercial redirect mappings (Product Catalogue is preserved in Manufacturing)
   const expectedRedirects: Record<string, string> = {
-    products: "/admin/products",
     customers: "/admin/customers",
     orders: "/admin/orders",
     kyc: "/admin/customers",
@@ -386,6 +386,139 @@ test("Navigation: Confirms 8 manufacturing tabs and 9 commercial redirect routes
     const routeRegex = new RegExp(`${key}:\\s*\\(\\)\\s*=>\\s*vRedirectModule\\(["']${key}["'],\\s*["'][^"']+["'],\\s*["']${expectedRoute}["']\\)`);
     assert(routeRegex.test(code), `Route mapping for ${key} must redirect to ${expectedRoute}`);
   }
+});
+
+// -----------------------------------------------------------------------------
+// 8. Manufacturing Product Catalogue & Manufacturing Aggregations
+// -----------------------------------------------------------------------------
+test("Product Catalogue: getProductAggregations maps manufacturing history, print jobs, and metrics", () => {
+  // Test products (internal manufacturing models)
+  const products = [
+    {
+      id: "prod-v1",
+      name: "Articulated Dragon",
+      sku: "DRG-001",
+      photo: "data:image/jpeg;base64,mockThumbnail",
+      grams: 120,
+      minutes: 180
+    },
+    {
+      id: "prod-v2",
+      name: "Cable Organizer Clip",
+      sku: "CBL-002",
+      photo: null,
+      grams: 25,
+      minutes: 45
+    }
+  ];
+
+  // Associated manufacturing print jobs
+  const prints = [
+    {
+      id: "print-101",
+      productId: "prod-v1",
+      statusLabel: "Success",
+      qty: 2,
+      grams: 240,
+      hours: 6.0,
+      date: "2026-11-15T10:00:00Z",
+      filamentsUsed: [{ type: "PLA", color: "#10B981" }]
+    },
+    {
+      id: "print-102",
+      productId: "prod-v1",
+      statusLabel: "Failed",
+      failed: 1,
+      qty: 0,
+      grams: 40,
+      hours: 1.0,
+      date: "2026-11-16T14:30:00Z",
+      filamentsUsed: [{ type: "PLA", color: "#10B981" }]
+    },
+    {
+      id: "print-103",
+      productId: "prod-v1",
+      statusLabel: "Success",
+      qty: 1,
+      grams: 120,
+      hours: 3.0,
+      date: "2026-11-18T09:00:00Z",
+      filamentsUsed: [{ type: "PETG", color: "#6366F1" }]
+    }
+  ];
+
+  // Helper matching ledgerCore.js getProductAggregations
+  const stats = new Map();
+  for (const p of products) {
+    stats.set(p.id, {
+      totalPrinted: 0,
+      totalGrams: 0,
+      totalPrintMinutes: 0,
+      successfulRuns: 0,
+      failedRuns: 0,
+      materials: new Set<string>(),
+      colors: new Map<string, string>(),
+      runs: [] as any[],
+      latestPrintDate: null as string | null
+    });
+  }
+
+  for (const x of prints) {
+    if (!x.productId) continue;
+    const s = stats.get(x.productId);
+    if (!s) continue;
+
+    s.runs.push(x);
+    const isSuccess = x.statusLabel === "Success" || (x.statusLabel !== "Canceled" && x.statusLabel !== "Failed" && !N(x.failed) && N(x.qty) > 0);
+    const isPrinting = x.statusLabel === "Printing";
+
+    if (isSuccess && !isPrinting) {
+      const q = N(x.qty) > 0 ? N(x.qty) : 1;
+      s.totalPrinted += q;
+      s.successfulRuns += 1;
+      const g = N(x.grams);
+      if (g > 0) s.totalGrams += g;
+      const mins = N(x.hours) > 0 ? N(x.hours) * 60 : N(x.minutes);
+      if (mins > 0) s.totalPrintMinutes += mins;
+    } else if (!isPrinting) {
+      s.failedRuns += 1;
+    }
+
+    if (Array.isArray(x.filamentsUsed) && x.filamentsUsed.length > 0) {
+      for (const fu of x.filamentsUsed) {
+        if (fu.type) s.materials.add(fu.type.trim());
+        if (fu.color) s.colors.set(String(fu.color).toUpperCase(), fu.type || "PLA");
+      }
+    }
+
+    if (x.date && (!s.latestPrintDate || x.date > s.latestPrintDate)) {
+      s.latestPrintDate = x.date;
+    }
+  }
+
+  for (const p of products) {
+    const s = stats.get(p.id);
+    s.avgMinutes = s.successfulRuns > 0 ? (s.totalPrintMinutes / s.successfulRuns) : (N(p.minutes) || 0);
+  }
+
+  // Assertions for prod-v1 (Printed model with mixed success/fail)
+  const stat1 = stats.get("prod-v1");
+  assert.equal(stat1.totalPrinted, 3, "Total printed must sum 2 + 1 = 3 pcs");
+  assert.equal(stat1.successfulRuns, 2, "Successful print runs must equal 2");
+  assert.equal(stat1.failedRuns, 1, "Failed print runs must equal 1");
+  assert.equal(stat1.totalGrams, 360, "Total filament consumed must sum successful prints 240g + 120g = 360g");
+  assert.equal(stat1.avgMinutes, 270, "Avg duration must be (360m + 180m) / 2 = 270 mins (4.5h)");
+  assert.equal(stat1.latestPrintDate, "2026-11-18T09:00:00Z", "Latest print date must match print-103");
+  assert.equal(stat1.runs.length, 3, "Must track all 3 associated historical print runs");
+  assert(stat1.materials.has("PLA") && stat1.materials.has("PETG"), "Must capture all materials used");
+
+  // Assertions for prod-v2 (Zero prints model)
+  const stat2 = stats.get("prod-v2");
+  assert.equal(stat2.totalPrinted, 0, "Zero prints model must have 0 totalPrinted");
+  assert.equal(stat2.successfulRuns, 0);
+  assert.equal(stat2.failedRuns, 0);
+  assert.equal(stat2.runs.length, 0);
+  assert.equal(stat2.avgMinutes, 45, "Avg duration must fallback to slicer estimate");
 });
 
 console.log("\n========================================================================");

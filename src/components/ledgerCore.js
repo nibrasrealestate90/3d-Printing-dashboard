@@ -676,6 +676,7 @@ function payStatus(i) {
 /* ---------- tabs ---------- */
 const TABS = [
   ["dashboard", "Dashboard"],
+  ["products", "Product Catalogue"],
   ["prints", "Print Jobs"],
   ["filaments", "Filament Inventory"],
   ["stock", "Stock Management"],
@@ -691,6 +692,7 @@ const NAV_GROUPS = [
     group: "MANUFACTURING",
     items: [
       { key: "dashboard", label: "Dashboard", icon: APP_ICONS.navDashboard },
+      { key: "products", label: "Product Catalogue", icon: APP_ICONS.navProducts },
       { key: "prints", label: "Print Jobs", icon: APP_ICONS.navPrints },
       { key: "filaments", label: "Filament Inventory", icon: APP_ICONS.navFilaments },
       { key: "stock", label: "Stock Management", icon: APP_ICONS.navStock },
@@ -715,6 +717,10 @@ function drawTabs() {
       <div class="nav-group-label">${g.group}</div>
       ${g.items.map(item => {
         let badge = "";
+        if (item.key === "products") {
+          const count = (S.products || []).length;
+          badge = `<span class="nav-badge">${count}</span>`;
+        }
         if (item.key === "prints") {
           const count = (S.prints || []).length;
           badge = `<span class="nav-badge">${count}</span>`;
@@ -786,7 +792,7 @@ function render() {
   try {
     const savedTab = localStorage.getItem("ps_tab");
     const allowedTabs = [
-      "dashboard", "prints", "filaments", "stock", "calc",
+      "dashboard", "products", "prints", "filaments", "stock", "calc",
       "reminders", "automation-history", "settings"
     ];
     if (savedTab && allowedTabs.includes(savedTab)) {
@@ -798,6 +804,7 @@ function render() {
   const st = set_();
   const tabTitles = {
     dashboard: "Dashboard",
+    products: "Product Catalogue",
     prints: "Print Jobs",
     filaments: "Filament Inventory",
     stock: "Stock Management",
@@ -806,7 +813,6 @@ function render() {
     "automation-history": "Sync History",
     settings: "Settings",
     // Commercial module redirects
-    products: "Product Catalogue",
     customers: "Customers",
     orders: "Orders",
     kyc: "Customer KYC",
@@ -818,6 +824,7 @@ function render() {
   };
   const tabCrumbs = {
     dashboard: "MANUFACTURING :",
+    products: "MANUFACTURING :",
     prints: "MANUFACTURING :",
     filaments: "MANUFACTURING :",
     stock: "MANUFACTURING :",
@@ -826,7 +833,6 @@ function render() {
     "automation-history": "OPERATIONS :",
     settings: "OPERATIONS :",
     // Commercial module crumbs
-    products: "BUSINESS SUITE :",
     customers: "BUSINESS SUITE :",
     orders: "BUSINESS SUITE :",
     kyc: "BUSINESS SUITE :",
@@ -847,6 +853,7 @@ function render() {
 
   const fn = {
     dashboard: vDash,
+    products: vProducts,
     prints: vPrints,
     filaments: vFil,
     stock: vStock,
@@ -854,7 +861,6 @@ function render() {
     reminders: vReminders,
     "automation-history": vAutomationHistory,
     settings: vSettings,
-    products: () => vRedirectModule("products", "Product Catalogue", "/admin/products"),
     customers: () => vRedirectModule("customers", "Customers", "/admin/customers"),
     orders: () => vRedirectModule("orders", "Orders", "/admin/orders"),
     kyc: () => vRedirectModule("kyc", "Customer KYC", "/admin/customers"),
