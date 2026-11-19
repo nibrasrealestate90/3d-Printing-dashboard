@@ -467,7 +467,18 @@ export function extractClientIp(req: Request): string {
   const isProduction = process.env.NODE_ENV === 'production';
   const trustedProxyMode = process.env.TRUSTED_PROXY?.toLowerCase();
 
-  // 1. Cloudflare Mode: strictly require deployment ingress verification (CF_INGRESS_VERIFIED=true)
+  // 1. Vercel Platform Mode (Auto-detected via platform-injected VERCEL=1)
+  // On direct Vercel deployments, the edge network populates x-vercel-forwarded-for with
+  // the single connecting client IP. Comma-separated chains are strictly rejected to prevent
+  // unverified leftmost hop trust / header injection.
+  if (process.env.VERCEL === '1') {
+    const vercelForwarded = req.headers.get('x-vercel-forwarded-for')?.trim();
+    if (vercelForwarded && !vercelForwarded.includes(',') && net.isIP(vercelForwarded)) {
+      return vercelForwarded;
+    }
+  }
+
+  // 2. Cloudflare Mode: strictly require deployment ingress verification (CF_INGRESS_VERIFIED=true)
   if (trustedProxyMode === 'cloudflare') {
     const cfIngressVerified = process.env.CF_INGRESS_VERIFIED === 'true';
     if (!cfIngressVerified) {
@@ -485,7 +496,7 @@ export function extractClientIp(req: Request): string {
     }
   }
 
-  // 2. Generic Trusted Reverse Proxy Mode (Chain Walk)
+  // 3. Generic Trusted Reverse Proxy Mode (Chain Walk)
   if (trustedProxyMode === 'true' || trustedProxyMode === '1') {
     const forwardedHeader = req.headers.get('x-forwarded-for');
     if (forwardedHeader) {
@@ -506,13 +517,13 @@ export function extractClientIp(req: Request): string {
     }
   }
 
-  // 3. Platform socket connection IP (e.g. Next.js socket)
+  // 4. Platform socket connection IP (e.g. Next.js socket)
   const nextIp = (req as any).ip;
   if (nextIp && typeof nextIp === 'string' && net.isIP(nextIp.trim())) {
     return nextIp.trim();
   }
 
-  // 4. Safe fallback handling
+  // 5. Safe fallback handling
   if (isProduction) {
     throw new Error(
       'UNVERIFIED_CLIENT_IP: Production environment requires a verified client IP configuration. Falling back to shared 127.0.0.1 is disabled in production to prevent shared rate-limit denial of service.'
