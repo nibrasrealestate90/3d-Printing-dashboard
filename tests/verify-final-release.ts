@@ -257,7 +257,6 @@ async function runFinalReleaseVerification() {
     // Test 5: Business Management Workspace Subpages Reachable
     const businessRoutes = [
       '/admin',
-      '/admin/inventory',
       '/admin/orders',
       '/admin/products',
       '/admin/enquiries',

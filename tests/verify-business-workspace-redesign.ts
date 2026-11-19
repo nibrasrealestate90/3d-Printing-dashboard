@@ -177,12 +177,11 @@ runTest('Application Shell: Clean sidebar with workspace switcher, no profile fo
     'Layout must preserve header logout button'
   );
 
-  // Must include all core navigation paths
+  // Must include all active core navigation paths (Inventory removed)
   const requiredPaths = [
     '/admin',
     '/admin/products',
     '/admin/orders',
-    '/admin/inventory',
     '/admin/enquiries',
     '/admin/quotations',
     '/admin/customers',
@@ -196,6 +195,12 @@ runTest('Application Shell: Clean sidebar with workspace switcher, no profile fo
   for (const p of requiredPaths) {
     assert.ok(content.includes(p), `Layout must include route ${p}`);
   }
+
+  // Inventory route must be completely removed from navigation
+  assert.ok(
+    !content.includes("'/admin/inventory'") && !content.includes('"/admin/inventory"'),
+    'Layout must NOT include removed route /admin/inventory'
+  );
 });
 
 // ----------------------------------------------------------------------------
@@ -257,13 +262,12 @@ runTest('Overview Page: Simplified store administration dashboard', () => {
 });
 
 // ----------------------------------------------------------------------------
-// Test 5: All 11 Business Module Routes Render in Business Workspace
+// Test 5: All 10 Active Business Module Routes Render in Business Workspace
 // ----------------------------------------------------------------------------
-runTest('Module Routes: All 11 modules use BusinessWorkspaceLayout & verifyServerSession', () => {
+runTest('Module Routes: All 10 active modules use BusinessWorkspaceLayout & verifyServerSession', () => {
   const modules = [
     'products/page.tsx',
     'orders/page.tsx',
-    'inventory/page.tsx',
     'enquiries/page.tsx',
     'quotations/page.tsx',
     'customers/page.tsx',
@@ -273,6 +277,10 @@ runTest('Module Routes: All 11 modules use BusinessWorkspaceLayout & verifyServe
     'instagram/page.tsx',
     'media/page.tsx',
   ];
+
+  // Confirm removed inventory route does not exist
+  const removedInventoryPath = path.join(ROOT_DIR, 'src/app/admin/inventory/page.tsx');
+  assert.ok(!fs.existsSync(removedInventoryPath), 'Removed inventory page must not exist');
 
   for (const mod of modules) {
     const modPath = path.join(ROOT_DIR, 'src/app/admin', mod);

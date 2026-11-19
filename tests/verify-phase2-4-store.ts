@@ -103,13 +103,13 @@ async function runPhase24Verification() {
     console.log('--- Section 1: Phase 2.3 Remediation Regression ---');
 
     // Test 1: getSafeRedirectUrl - Safe Relative Admin Paths
-    const path1 = getSafeRedirectUrl('/admin/inventory');
+    const path1 = getSafeRedirectUrl('/admin/orders');
     const path2 = getSafeRedirectUrl('/admin/production');
     const path3 = getSafeRedirectUrl('/admin/quotes?status=pending');
     const path4 = getSafeRedirectUrl('');
     const path5 = getSafeRedirectUrl(null);
     const test1Passed =
-      path1 === '/admin/inventory' &&
+      path1 === '/admin/orders' &&
       path2 === '/admin/production' &&
       path3 === '/admin/quotes?status=pending' &&
       path4 === '/admin' &&
@@ -120,7 +120,7 @@ async function runPhase24Verification() {
       'Security Remediation',
       test1Passed,
       'Relative /admin/* paths accepted, null/empty defaults to /admin',
-      `inventory: ${path1}, production: ${path2}, quotes: ${path3}, empty: ${path4}`
+      `orders: ${path1}, production: ${path2}, quotes: ${path3}, empty: ${path4}`
     );
 
     // Test 2: getSafeRedirectUrl - Open Redirect & Injection Attacks Rejected

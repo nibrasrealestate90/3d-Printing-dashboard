@@ -118,7 +118,6 @@ async function runPhase23Verification() {
       { path: '/admin/production', expectedRedirect: '/login?redirect=%2Fadmin%2Fproduction' },
       { path: '/admin/products', expectedRedirect: '/login?redirect=%2Fadmin%2Fproducts' },
       { path: '/admin/orders', expectedRedirect: '/login?redirect=%2Fadmin%2Forders' },
-      { path: '/admin/inventory', expectedRedirect: '/login?redirect=%2Fadmin%2Finventory' },
       { path: '/admin/enquiries', expectedRedirect: '/login?redirect=%2Fadmin%2Fenquiries' },
       { path: '/admin/quotations', expectedRedirect: '/login?redirect=%2Fadmin%2Fquotations' },
       { path: '/admin/customers', expectedRedirect: '/login?redirect=%2Fadmin%2Fcustomers' },
@@ -311,7 +310,6 @@ async function runPhase23Verification() {
     const subpages = [
       { path: '/admin/products', title: 'Commercial Products' },
       { path: '/admin/orders', title: 'Commercial Orders' },
-      { path: '/admin/inventory', title: 'Commercial Inventory' },
       { path: '/admin/enquiries', title: 'Customer Enquiries' },
       { path: '/admin/quotations', title: 'Quotations (RFQ)' },
       { path: '/admin/customers', title: 'Customer Directory' },
