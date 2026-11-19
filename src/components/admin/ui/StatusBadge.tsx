@@ -18,7 +18,8 @@ export function StatusBadge({ status, label, variant }: StatusBadgeProps) {
       normalized.includes("ACTIVE") ||
       normalized.includes("OPERATIONAL") ||
       normalized.includes("DELIVERED") ||
-      normalized.includes("PAID")
+      normalized.includes("PAID") ||
+      normalized.includes("RESPONDED")
     ) {
       resolvedVariant = "success";
     } else if (
