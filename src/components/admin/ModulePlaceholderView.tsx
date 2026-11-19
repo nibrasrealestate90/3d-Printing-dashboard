@@ -45,7 +45,7 @@ export function ModulePlaceholderView({
         {/* Module Icon Badge */}
         <div
           className="bm-empty-icon"
-          style={{ background: iconBgColor, color: "#062C2F" }}
+          style={{ background: iconBgColor, color: "var(--bm-accent)" }}
         >
           <HugeIcon icon={icon} size={30} strokeWidth={2} />
         </div>

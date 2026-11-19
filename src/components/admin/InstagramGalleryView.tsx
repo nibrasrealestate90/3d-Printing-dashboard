@@ -235,7 +235,7 @@ export function InstagramGalleryView() {
               gap: "8px",
               padding: "10px 18px",
               borderRadius: "12px",
-              background: "#062C2F",
+              background: "var(--bm-accent)",
               color: "#FFFFFF",
               fontWeight: 600,
               fontSize: "13px",
@@ -584,7 +584,7 @@ export function InstagramGalleryView() {
                   style={{
                     padding: "10px 22px",
                     borderRadius: "10px",
-                    background: "#062C2F",
+                    background: "var(--bm-accent)",
                     color: "white",
                     fontSize: "13px",
                     fontWeight: 600,

@@ -281,7 +281,7 @@ export function MediaLibraryView({
                 gap: "8px",
                 padding: "10px 18px",
                 borderRadius: "12px",
-                background: "#062C2F",
+                background: "var(--bm-accent)",
                 color: "#FFFFFF",
                 fontWeight: 600,
                 fontSize: "13px",

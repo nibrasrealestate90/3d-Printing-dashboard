@@ -40,22 +40,35 @@ export interface BusinessWorkspaceLayoutProps {
   children: React.ReactNode;
 }
 
-const NAV_ITEMS = [
+interface NavItem {
+  path: string;
+  label: string;
+  icon: any;
+  badge?: string;
+}
+
+const CORE_NAV_ITEMS: NavItem[] = [
   { path: "/admin", label: "Overview", icon: DashboardSquare01Icon },
   { path: "/admin/products", label: "Products", icon: PackageIcon },
   { path: "/admin/orders", label: "Orders", icon: Invoice01Icon },
   { path: "/admin/inventory", label: "Inventory", icon: Layers01Icon },
+];
+
+const SALES_NAV_ITEMS: NavItem[] = [
   { path: "/admin/enquiries", label: "Enquiries", icon: Mail01Icon },
   { path: "/admin/quotations", label: "Quotations", icon: Calculator01Icon },
   { path: "/admin/customers", label: "Customers", icon: UserMultiple02Icon },
-  { path: "/admin/expenses", label: "Expenses", icon: CreditCardIcon },
-  { path: "/admin/reports", label: "Reports", icon: Analytics01Icon },
-  { path: "/admin/settings", label: "Settings", icon: Settings01Icon },
 ];
 
-const WEBSITE_NAV_ITEMS = [
+const FINANCE_STORE_NAV_ITEMS: NavItem[] = [
+  { path: "/admin/expenses", label: "Expenses", icon: CreditCardIcon },
+  { path: "/admin/reports", label: "Reports", icon: Analytics01Icon },
   { path: "/admin/instagram", label: "Instagram", icon: InstagramIcon },
   { path: "/admin/media", label: "Media Library", icon: Image01Icon },
+];
+
+const SYSTEM_NAV_ITEMS: NavItem[] = [
+  { path: "/admin/settings", label: "Settings", icon: Settings01Icon },
 ];
 
 export function BusinessWorkspaceLayout({
@@ -68,11 +81,12 @@ export function BusinessWorkspaceLayout({
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState("");
 
   const userEmail = user?.email || "admin@printstudio.ae";
-  const userName = user?.full_name || "Administrator";
+  const userName = user?.full_name || "Studio Manager";
   const userRole = user?.role || "ADMIN";
-  const userInitials = (userName || "AD")
+  const userInitials = (userName || "SM")
     .split(" ")
     .map((n) => n[0])
     .join("")
@@ -95,10 +109,10 @@ export function BusinessWorkspaceLayout({
     }
   }
 
-  const renderNavLinks = () => (
+  const renderNavSection = (heading: string, items: NavItem[]) => (
     <div className="bm-nav-group">
-      <span className="bm-nav-group-title">Commercial Operations</span>
-      {NAV_ITEMS.map((item) => {
+      <span className="bm-nav-group-title">{heading}</span>
+      {items.map((item) => {
         const isActive =
           item.path === "/admin"
             ? currentPath === "/admin" || currentPath === "/admin/overview"
@@ -116,55 +130,69 @@ export function BusinessWorkspaceLayout({
               <HugeIcon icon={item.icon} size={15} strokeWidth={2} />
             </div>
             <span>{item.label}</span>
+            {item.badge && (
+              <span
+                style={{
+                  marginLeft: "auto",
+                  fontSize: "10px",
+                  padding: "1px 6px",
+                  borderRadius: "999px",
+                  background: "var(--bm-accent-soft)",
+                  color: "var(--bm-accent)",
+                  fontWeight: 700,
+                }}
+              >
+                {item.badge}
+              </span>
+            )}
           </Link>
         );
       })}
+    </div>
+  );
 
-      <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px solid var(--bm-border-subtle)" }}>
-        <span className="bm-nav-group-title">Website & Media</span>
-        {WEBSITE_NAV_ITEMS.map((item) => {
-          const isActive = currentPath === item.path || currentPath.startsWith(`${item.path}/`);
-          return (
-            <Link
-              key={item.path}
-              href={item.path}
-              className="bm-nav-item"
-              aria-current={isActive ? "page" : undefined}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <div className="bm-nav-icon-wrap">
-                <HugeIcon icon={item.icon} size={15} strokeWidth={2} />
-              </div>
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
-      </div>
+  const renderNavLinks = () => (
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      {renderNavSection("Core Operations", CORE_NAV_ITEMS)}
+      {renderNavSection("Sales & Clients", SALES_NAV_ITEMS)}
+      {renderNavSection("Store & Finance", FINANCE_STORE_NAV_ITEMS)}
+      {renderNavSection("System", SYSTEM_NAV_ITEMS)}
 
-      <div style={{ marginTop: "16px", paddingTop: "12px", borderTop: "1px solid var(--bm-border-subtle)" }}>
+      {/* Production Bridge Link */}
+      <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid var(--bm-border-subtle)" }}>
         <span className="bm-nav-group-title">Manufacturing Console</span>
         <Link
           href="/admin/production"
           className="bm-nav-item"
-          style={{ background: "rgba(6, 44, 47, 0.04)" }}
+          style={{
+            background: "var(--bm-surface-muted)",
+            border: "1px solid var(--bm-border)",
+            fontWeight: 600,
+          }}
           onClick={() => setMobileMenuOpen(false)}
         >
-          <div className="bm-nav-icon-wrap" style={{ background: "var(--bm-pastel-lime)", color: "#062C2F" }}>
+          <div
+            className="bm-nav-icon-wrap"
+            style={{
+              background: "var(--bm-pastel-coral)",
+              color: "var(--bm-accent)",
+            }}
+          >
             <HugeIcon icon={PrinterIcon} size={15} strokeWidth={2} />
           </div>
-          <span style={{ fontWeight: 600 }}>Bambu Production</span>
+          <span style={{ color: "var(--bm-text-primary)" }}>Bambu Production</span>
           <span
             style={{
               marginLeft: "auto",
               fontSize: "10px",
-              padding: "2px 6px",
+              padding: "2px 7px",
               borderRadius: "999px",
-              background: "#10B981",
+              background: "var(--bm-success)",
               color: "#FFFFFF",
               fontWeight: 700,
             }}
           >
-            LIVE
+            ONLINE
           </span>
         </Link>
       </div>
@@ -176,22 +204,22 @@ export function BusinessWorkspaceLayout({
       <div className="bm-app-shell">
         {/* Desktop Persistent Sidebar */}
         <aside className="bm-sidebar" aria-label="Business Workspace Navigation">
-          {/* Brand */}
+          {/* Brand Area */}
           <Link href="/admin" className="bm-brand-wrap">
             <div className="bm-brand-logo">
               <Image src="/logo.svg" alt="Print Studio Logo" width={22} height={22} priority />
             </div>
             <div className="bm-brand-text">
               <h1>Print Studio</h1>
-              <p>Dubai, UAE · Business</p>
+              <p>Commercial Workspace</p>
             </div>
           </Link>
 
-          {/* Workspace Switcher */}
+          {/* Seamless Dual Workspace Switcher */}
           <div className="bm-switcher-card">
             <div className="bm-switcher-label">
-              <span>Current Workspace</span>
-              <span style={{ fontSize: "9px", color: "#10B981", fontWeight: 700 }}>ACTIVE</span>
+              <span>Active Workspace</span>
+              <span style={{ fontSize: "9px", color: "var(--bm-success)", fontWeight: 700 }}>LIVE</span>
             </div>
             <div className="bm-switcher-active-pill">
               <span className="bm-live-dot" />
@@ -200,7 +228,7 @@ export function BusinessWorkspaceLayout({
             <Link
               href="/admin/production"
               className="bm-switcher-btn"
-              title="Switch to Bambu 3D Manufacturing & Printer Telemetry"
+              title="Switch to Bambu 3D Manufacturing Workspace"
             >
               <span>Switch to Bambu Production</span>
               <HugeIcon icon={ArrowRight01Icon} size={13} strokeWidth={2} />
@@ -208,7 +236,7 @@ export function BusinessWorkspaceLayout({
           </div>
 
           {/* Navigation Links */}
-          <nav style={{ flex: 1, overflowY: "auto" }}>
+          <nav style={{ flex: 1, overflowY: "auto", paddingRight: "4px" }}>
             {renderNavLinks()}
           </nav>
 
@@ -245,10 +273,17 @@ export function BusinessWorkspaceLayout({
             <div className="bm-mobile-drawer-panel" onClick={(e) => e.stopPropagation()}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <Image src="/logo.svg" alt="Logo" width={24} height={24} />
-                  <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--bm-text-primary)" }}>
-                    Print Studio
-                  </span>
+                  <div className="bm-brand-logo" style={{ width: "32px", height: "32px" }}>
+                    <Image src="/logo.svg" alt="Logo" width={20} height={20} />
+                  </div>
+                  <div>
+                    <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--bm-text-primary)", display: "block" }}>
+                      Print Studio
+                    </span>
+                    <span style={{ fontSize: "11px", color: "var(--bm-text-muted)" }}>
+                      Business Management
+                    </span>
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -262,7 +297,10 @@ export function BusinessWorkspaceLayout({
 
               {/* Workspace Switcher in Drawer */}
               <div className="bm-switcher-card">
-                <div className="bm-switcher-label">Active Workspace</div>
+                <div className="bm-switcher-label">
+                  <span>Current Workspace</span>
+                  <span style={{ fontSize: "9px", color: "var(--bm-success)", fontWeight: 700 }}>ACTIVE</span>
+                </div>
                 <div className="bm-switcher-active-pill">
                   <span className="bm-live-dot" />
                   <span>Business Management</span>
@@ -326,11 +364,17 @@ export function BusinessWorkspaceLayout({
             </div>
 
             <div className="bm-header-actions">
+              {/* Studio System Status Pill */}
+              <div className="bm-status-pill" title="Bambu Cloud MQTT telemetry connected & operational">
+                <span className="bm-live-dot" />
+                <span>Bambu Cloud Active</span>
+              </div>
+
               {/* Direct Workspace Switcher Pill in Header */}
               <Link
                 href="/admin/production"
                 className="bm-header-bridge-btn"
-                title="Open Bambu Production Workspace"
+                title="Open Bambu 3D Manufacturing Workspace"
               >
                 <HugeIcon icon={PrinterIcon} size={14} strokeWidth={2} />
                 <span>Bambu Production</span>
