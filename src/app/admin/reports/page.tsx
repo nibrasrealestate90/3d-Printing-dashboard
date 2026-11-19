@@ -211,17 +211,9 @@ export default async function ReportsPage() {
                 <p style={{ fontSize: "13px", fontWeight: 700, color: "var(--bm-text-primary)", margin: "0 0 4px 0" }}>
                   UAE 5% VAT Report
                 </p>
-                <p style={{ fontSize: "11px", color: "var(--bm-text-secondary)", margin: "0 0 10px 0" }}>
+                <p style={{ fontSize: "11px", color: "var(--bm-text-secondary)", margin: 0 }}>
                   Estimated Output VAT: AED {((totalRevenue * 0.05) / 1.05).toFixed(2)}
                 </p>
-                <button
-                  type="button"
-                  className="bm-btn bm-btn-secondary"
-                  style={{ width: "100%", fontSize: "12px" }}
-                  onClick={() => alert("VAT Summary Exported to CSV.")}
-                >
-                  Download VAT Summary (CSV)
-                </button>
               </div>
 
               <div
