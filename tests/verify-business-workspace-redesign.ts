@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import React from 'react';
+import ReactDOMServer from 'react-dom/server';
+import { Mail01Icon } from '@hugeicons/core-free-icons';
+import { MetricCard } from '../src/components/admin/ui/MetricCard';
+import { EmptyState } from '../src/components/admin/ui/EmptyState';
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 
@@ -83,6 +88,33 @@ runTest('Reusable UI Components: PageHeader, MetricCard, DataTable, StatusBadge,
       `${comp} must export ${baseName}`
     );
   }
+});
+
+// ----------------------------------------------------------------------------
+// Test 2b: Icon Rendering Invariant (No "Objects are not valid as a React child")
+// ----------------------------------------------------------------------------
+runTest('Icon Rendering Runtime Invariant: HugeIconData renders to valid SVG without React child error', () => {
+  // Must render MetricCard with HugeIconData without throwing
+  const metricOutput = ReactDOMServer.renderToString(
+    React.createElement(MetricCard, {
+      label: 'Test Metric',
+      value: 123,
+      icon: Mail01Icon,
+    })
+  );
+  assert.ok(metricOutput.includes('<svg'), 'MetricCard must render an SVG element');
+  assert.ok(!metricOutput.includes('[object Object]'), 'Must not render raw object text');
+
+  // Must render EmptyState with HugeIconData without throwing
+  const emptyOutput = ReactDOMServer.renderToString(
+    React.createElement(EmptyState, {
+      title: 'Empty Inbox',
+      description: 'No messages',
+      icon: Mail01Icon,
+    })
+  );
+  assert.ok(emptyOutput.includes('<svg'), 'EmptyState must render an SVG element');
+  assert.ok(!emptyOutput.includes('[object Object]'), 'Must not render raw object text');
 });
 
 // ----------------------------------------------------------------------------

@@ -14,6 +14,21 @@ export interface MetricCardProps {
   onClick?: () => void;
 }
 
+function renderMetricIcon(icon: HugeIconData | React.ReactNode) {
+  if (!icon) return null;
+  if (Array.isArray(icon)) {
+    return <HugeIcon icon={icon as HugeIconData} size={18} strokeWidth={2} />;
+  }
+  if (React.isValidElement(icon)) {
+    return icon;
+  }
+  if (typeof icon === "function") {
+    const IconComponent = icon as React.ComponentType<{ size?: number; strokeWidth?: number }>;
+    return <IconComponent size={18} strokeWidth={2} />;
+  }
+  return null;
+}
+
 export function MetricCard({
   label,
   value,
@@ -53,11 +68,7 @@ export function MetricCard({
               color: colors.color,
             }}
           >
-            {typeof icon === "object" && "name" in (icon as any) ? (
-              <HugeIcon icon={icon as HugeIconData} size={18} strokeWidth={2} />
-            ) : (
-              (icon as React.ReactNode)
-            )}
+            {renderMetricIcon(icon)}
           </div>
         )}
       </div>
