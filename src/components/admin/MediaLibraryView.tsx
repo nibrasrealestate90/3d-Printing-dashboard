@@ -10,6 +10,7 @@ import {
   AlertCircleIcon,
   Search01Icon,
   CancelCircleIcon,
+  ImageNotFound01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeIcon } from "@/components/hugeIcons";
 
@@ -26,6 +27,93 @@ interface MediaAsset {
   uploadedBy?: string;
   referencedIn?: string[];
   isReferenced?: boolean;
+}
+
+function MediaAssetThumbnail({
+  url,
+  fileName,
+  isReferenced,
+  referencedIn,
+  onSelect,
+}: {
+  url: string;
+  fileName: string;
+  isReferenced?: boolean;
+  referencedIn?: string[];
+  onSelect?: () => void;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [url]);
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        aspectRatio: "4/3",
+        background: "#F1F5F9",
+        position: "relative",
+        overflow: "hidden",
+        cursor: onSelect ? "pointer" : "default",
+      }}
+      onClick={onSelect}
+    >
+      {!hasError ? (
+        <img
+          src={url}
+          alt={fileName}
+          onError={() => setHasError(true)}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
+      ) : (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#F8FAFC",
+            border: "1px dashed #CBD5E1",
+            padding: "8px",
+            boxSizing: "border-box",
+            textAlign: "center",
+          }}
+          title={`Asset unreachable: ${url}\nURL reference preserved in media catalog.`}
+        >
+          <HugeIcon icon={ImageNotFound01Icon} size={24} color="#94A3B8" />
+          <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748B", marginTop: "4px" }}>
+            Asset Unreachable
+          </span>
+          <span style={{ fontSize: "9px", color: "#94A3B8", marginTop: "1px" }}>
+            URL Preserved
+          </span>
+        </div>
+      )}
+
+      {/* Usage Badge */}
+      <span
+        style={{
+          position: "absolute",
+          top: 8,
+          right: 8,
+          fontSize: "10px",
+          fontWeight: 700,
+          padding: "2px 6px",
+          borderRadius: "4px",
+          background: isReferenced ? "rgba(16, 185, 129, 0.9)" : "rgba(100, 116, 139, 0.8)",
+          color: "white",
+          zIndex: 2,
+        }}
+        title={isReferenced ? `In use by: ${referencedIn?.join(", ")}` : "Unused asset"}
+      >
+        {isReferenced ? "IN USE" : "UNUSED"}
+      </span>
+    </div>
+  );
 }
 
 export function MediaLibraryView({
@@ -368,41 +456,13 @@ export function MediaLibraryView({
               }}
             >
               {/* Thumbnail */}
-              <div
-                style={{
-                  width: "100%",
-                  aspectRatio: "4/3",
-                  background: "#F1F5F9",
-                  position: "relative",
-                  overflow: "hidden",
-                  cursor: onSelectImage ? "pointer" : "default",
-                }}
-                onClick={() => onSelectImage?.(item.url)}
-              >
-                <img
-                  src={item.url}
-                  alt={item.fileName}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
-
-                {/* Usage Badge */}
-                <span
-                  style={{
-                    position: "absolute",
-                    top: 8,
-                    right: 8,
-                    fontSize: "10px",
-                    fontWeight: 700,
-                    padding: "2px 6px",
-                    borderRadius: "4px",
-                    background: item.isReferenced ? "rgba(16, 185, 129, 0.9)" : "rgba(100, 116, 139, 0.8)",
-                    color: "white",
-                  }}
-                  title={item.isReferenced ? `In use by: ${item.referencedIn?.join(", ")}` : "Unused asset"}
-                >
-                  {item.isReferenced ? "IN USE" : "UNUSED"}
-                </span>
-              </div>
+              <MediaAssetThumbnail
+                url={item.url}
+                fileName={item.fileName}
+                isReferenced={item.isReferenced}
+                referencedIn={item.referencedIn}
+                onSelect={onSelectImage ? () => onSelectImage(item.url) : undefined}
+              />
 
               {/* Asset Info */}
               <div style={{ padding: "12px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>

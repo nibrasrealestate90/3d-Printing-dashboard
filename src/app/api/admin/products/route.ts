@@ -44,6 +44,18 @@ export async function GET(req: NextRequest) {
       const sellingPrice = isNaN(rawPrice) || rawPrice < 0 ? 0 : Number(rawPrice.toFixed(2));
       const isCommercial = Boolean(d.isCommercial || d.publicName || (d.published !== undefined && d.published !== null));
 
+      const rawGallery: string[] = Array.isArray(d.images)
+        ? (d.images as unknown[]).map(sanitizeImageUrl).filter((u): u is string => u !== null)
+        : [];
+      const singleImg = sanitizeImageUrl(d.imageUrl) || sanitizeImageUrl(d.photo) || null;
+      if (singleImg && !rawGallery.includes(singleImg)) {
+        if (rawGallery.length === 0) {
+          rawGallery.push(singleImg);
+        }
+      }
+      const images = rawGallery.slice(0, 6);
+      const imageUrl = images[0] || singleImg || null;
+
       return {
         id: String(d.id || r.record_id),
         name: String(d.publicName || d.name || 'Untitled Product'),
@@ -54,10 +66,8 @@ export async function GET(req: NextRequest) {
         currency: 'AED',
         description: String(d.publicDescription || d.description || ''),
         internalNotes: String(d.notes || ''),
-        imageUrl: sanitizeImageUrl(d.imageUrl) || sanitizeImageUrl(d.photo) || null,
-        images: Array.isArray(d.images)
-          ? (d.images as unknown[]).map(sanitizeImageUrl).filter((u): u is string => u !== null)
-          : [],
+        imageUrl,
+        images,
         material: d.material ? String(d.material) : undefined,
         dimensions: d.dimensions ? String(d.dimensions) : undefined,
         finish: d.finish ? String(d.finish) : undefined,
@@ -177,18 +187,39 @@ export async function POST(req: NextRequest) {
 
     const category = String(body.category || '3D Prints').trim();
     const publicDescription = String(body.publicDescription || body.description || '').trim();
-    const imageUrl = sanitizeImageUrl(body.imageUrl) || null;
 
-    const rawImages: unknown[] = Array.isArray(body.images) ? body.images : [];
-    const images: string[] = [];
+    // Multi-Image Gallery Processing (Authoritative max 6 images)
+    // The first image in body.images is authoritative as the primary image
+    const rawImages: unknown[] = Array.isArray(body.images)
+      ? body.images
+      : (body.imageUrl ? [body.imageUrl] : []);
+
+    const validatedImages: string[] = [];
     for (const item of rawImages) {
       const sanitized = sanitizeImageUrl(item);
-      if (sanitized && !images.includes(sanitized)) {
-        images.push(sanitized);
+      if (sanitized && !validatedImages.includes(sanitized)) {
+        validatedImages.push(sanitized);
       }
     }
-    if (imageUrl && !images.includes(imageUrl)) {
-      images.unshift(imageUrl);
+
+    // In case legacy single-image payload didn't supply images array
+    const singleImageUrl = sanitizeImageUrl(body.imageUrl);
+    if (singleImageUrl && !validatedImages.includes(singleImageUrl)) {
+      if (validatedImages.length === 0) {
+        validatedImages.push(singleImageUrl);
+      }
+    }
+
+    // Enforce maximum 6 images (1 primary + up to 5 secondary)
+    const images = validatedImages.slice(0, 6);
+    // Primary image is strictly synchronized to images[0]
+    const imageUrl = images[0] || null;
+
+    if (published && !imageUrl) {
+      return NextResponse.json(
+        { error: 'VALIDATION_ERROR', message: 'At least one valid product image is required to publish.' },
+        { status: 400 }
+      );
     }
 
     const material = body.material ? String(body.material).trim() : undefined;

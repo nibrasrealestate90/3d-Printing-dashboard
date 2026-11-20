@@ -14,6 +14,9 @@ import {
   PrinterIcon,
   CheckmarkCircle02Icon,
   ArrowRight01Icon,
+  ArrowLeft01Icon,
+  StarIcon,
+  ImageNotFound01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeIcon } from "@/components/hugeIcons";
 import { PageHeader } from "@/components/admin/ui/PageHeader";
@@ -52,6 +55,323 @@ const CATEGORIES = [
   "Custom Prints",
 ];
 
+const MAX_PRODUCT_IMAGES = 6;
+
+function ProductTableThumbnail({
+  imageUrl,
+  name,
+  imagesCount,
+}: {
+  imageUrl: string | null;
+  name: string;
+  imagesCount?: number;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [imageUrl]);
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "48px",
+        height: "48px",
+        borderRadius: "10px",
+        background: "#F1F5F9",
+        overflow: "hidden",
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        border: "1px solid var(--bm-border-subtle)",
+      }}
+    >
+      {imageUrl && !hasError ? (
+        <>
+          <img
+            src={imageUrl}
+            alt={name}
+            onError={() => setHasError(true)}
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+          {imagesCount && imagesCount > 1 ? (
+            <span
+              style={{
+                position: "absolute",
+                bottom: "2px",
+                right: "2px",
+                background: "rgba(15, 23, 42, 0.75)",
+                color: "white",
+                fontSize: "9px",
+                fontWeight: 700,
+                padding: "1px 4px",
+                borderRadius: "3px",
+                lineHeight: "1.1",
+              }}
+              title={`${imagesCount} gallery photos`}
+            >
+              {imagesCount}
+            </span>
+          ) : null}
+        </>
+      ) : (
+        <HugeIcon icon={hasError ? ImageNotFound01Icon : PackageIcon} size={22} color="#94A3B8" />
+      )}
+    </div>
+  );
+}
+
+function GalleryThumbnailCard({
+  imgUrl,
+  idx,
+  isPrimary,
+  isUploadingImage,
+  onRemove,
+  onMoveLeft,
+  onMoveRight,
+  onSetPrimary,
+  canMoveRight,
+}: {
+  imgUrl: string;
+  idx: number;
+  isPrimary: boolean;
+  isUploadingImage: boolean;
+  onRemove: () => void;
+  onMoveLeft: () => void;
+  onMoveRight: () => void;
+  onSetPrimary: () => void;
+  canMoveRight: boolean;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [imgUrl]);
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        display: "flex",
+        flexDirection: "column",
+        borderRadius: "10px",
+        border: isPrimary ? "2px solid #0284C7" : "1px solid var(--bm-border-subtle)",
+        background: "white",
+        overflow: "hidden",
+        boxShadow: isPrimary ? "0 2px 8px rgba(2, 132, 199, 0.15)" : "0 1px 3px rgba(0,0,0,0.05)",
+        transition: "all 0.15s ease",
+      }}
+    >
+      {/* Image Thumbnail Container */}
+      <div style={{ position: "relative", width: "100%", height: "100px", background: "#F1F5F9" }}>
+        {!hasError ? (
+          <img
+            src={imgUrl}
+            alt={`Product image ${idx + 1}`}
+            onError={() => setHasError(true)}
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          />
+        ) : (
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "#F8FAFC",
+              border: "1px dashed #CBD5E1",
+              padding: "26px 6px 6px 6px",
+              boxSizing: "border-box",
+              textAlign: "center",
+              userSelect: "none",
+            }}
+            title={`Image failed to load:\n${imgUrl}\n\nOriginal URL is preserved in product gallery.`}
+          >
+            <HugeIcon icon={ImageNotFound01Icon} size={22} color="#94A3B8" />
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                color: "#475569",
+                marginTop: "4px",
+                lineHeight: 1.2,
+              }}
+            >
+              Image Unreachable
+            </span>
+            <span
+              style={{
+                fontSize: "9px",
+                color: "#94A3B8",
+                marginTop: "2px",
+                fontWeight: 500,
+                letterSpacing: "0.2px",
+              }}
+            >
+              URL Preserved
+            </span>
+          </div>
+        )}
+
+        {/* Position & Primary Badge */}
+        <div
+          style={{
+            position: "absolute",
+            top: "6px",
+            left: "6px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "3px",
+            background: isPrimary ? "#0284C7" : "rgba(15, 23, 42, 0.75)",
+            color: "white",
+            fontSize: "10px",
+            fontWeight: 700,
+            padding: "2px 6px",
+            borderRadius: "4px",
+            backdropFilter: "blur(4px)",
+            letterSpacing: "0.2px",
+            zIndex: 2,
+          }}
+        >
+          {isPrimary && <HugeIcon icon={StarIcon} size={10} />}
+          <span>{isPrimary ? "#1 PRIMARY" : `#${idx + 1}`}</span>
+        </div>
+
+        {/* Delete Button */}
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={isUploadingImage}
+          style={{
+            position: "absolute",
+            top: "6px",
+            right: "6px",
+            width: "22px",
+            height: "22px",
+            background: "rgba(220, 38, 38, 0.9)",
+            color: "white",
+            border: "none",
+            borderRadius: "4px",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: isUploadingImage ? "not-allowed" : "pointer",
+            opacity: isUploadingImage ? 0.5 : 1,
+            transition: "background 0.15s ease",
+            zIndex: 2,
+          }}
+          title={isPrimary ? "Remove primary image (next image will become primary)" : "Remove secondary image"}
+        >
+          <HugeIcon icon={Delete01Icon} size={12} />
+        </button>
+      </div>
+
+      {/* Action Controls Toolbar */}
+      <div
+        style={{
+          padding: "6px 8px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "4px",
+          background: isPrimary ? "#F0F9FF" : "white",
+          borderTop: isPrimary ? "1px solid #BAE6FD" : "1px solid var(--bm-border-subtle)",
+        }}
+      >
+        {/* Reorder: Move Left */}
+        <button
+          type="button"
+          onClick={onMoveLeft}
+          disabled={idx === 0 || isUploadingImage}
+          style={{
+            width: "24px",
+            height: "24px",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "var(--bm-bg-subtle, #F1F5F9)",
+            border: "1px solid var(--bm-border-subtle, #E2E8F0)",
+            borderRadius: "4px",
+            cursor: idx === 0 || isUploadingImage ? "not-allowed" : "pointer",
+            opacity: idx === 0 || isUploadingImage ? 0.35 : 1,
+            color: "var(--bm-text-primary, #0F172A)",
+          }}
+          title={idx === 0 ? "First image cannot move left" : "Move left"}
+        >
+          <HugeIcon icon={ArrowLeft01Icon} size={12} />
+        </button>
+
+        {/* Center Action: Set as Primary (if secondary) or "Primary" label */}
+        {!isPrimary ? (
+          <button
+            type="button"
+            onClick={onSetPrimary}
+            disabled={isUploadingImage}
+            style={{
+              flex: 1,
+              height: "24px",
+              padding: "0 4px",
+              fontSize: "10px",
+              fontWeight: 600,
+              background: "transparent",
+              border: "1px solid #0284C7",
+              color: "#0284C7",
+              borderRadius: "4px",
+              cursor: isUploadingImage ? "not-allowed" : "pointer",
+              opacity: isUploadingImage ? 0.5 : 1,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+            title="Promote to primary image"
+          >
+            Set Primary
+          </button>
+        ) : (
+          <span
+            style={{
+              flex: 1,
+              textAlign: "center",
+              fontSize: "10px",
+              fontWeight: 700,
+              color: "#0284C7",
+            }}
+          >
+            Primary
+          </span>
+        )}
+
+        {/* Reorder: Move Right */}
+        <button
+          type="button"
+          onClick={onMoveRight}
+          disabled={!canMoveRight || isUploadingImage}
+          style={{
+            width: "24px",
+            height: "24px",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "var(--bm-bg-subtle, #F1F5F9)",
+            border: "1px solid var(--bm-border-subtle, #E2E8F0)",
+            borderRadius: "4px",
+            cursor: !canMoveRight || isUploadingImage ? "not-allowed" : "pointer",
+            opacity: !canMoveRight || isUploadingImage ? 0.35 : 1,
+            color: "var(--bm-text-primary, #0F172A)",
+          }}
+          title={!canMoveRight ? "Last image cannot move right" : "Move right"}
+        >
+          <HugeIcon icon={ArrowRight01Icon} size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ProductManagementView() {
   const [allProducts, setAllProducts] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +401,7 @@ export function ProductManagementView() {
   // Media Library Picker & Inline Upload State
   const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [uploadStatusText, setUploadStatusText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function fetchProducts() {
@@ -158,7 +479,7 @@ export function ProductManagementView() {
         }
       }
     }
-    setFormImages(initialImgs);
+    setFormImages(initialImgs.slice(0, MAX_PRODUCT_IMAGES));
     setFormPublished(Boolean(selectedForImport.published));
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -172,7 +493,19 @@ export function ProductManagementView() {
     setFormPrice(String(prod.sellingPrice || 0));
     setFormDescription(prod.description || "");
     setFormCategory(prod.category || "Home Decor");
-    setFormImages(prod.images || (prod.imageUrl ? [prod.imageUrl] : []));
+
+    const initialImgs: string[] = [];
+    if (Array.isArray(prod.images) && prod.images.length > 0) {
+      for (const img of prod.images) {
+        if (img && !initialImgs.includes(img)) {
+          initialImgs.push(img);
+        }
+      }
+    } else if (prod.imageUrl && !prod.imageUrl.startsWith("data:")) {
+      initialImgs.push(prod.imageUrl);
+    }
+    setFormImages(initialImgs.slice(0, MAX_PRODUCT_IMAGES));
+
     setFormPublished(Boolean(prod.published));
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -240,6 +573,7 @@ export function ProductManagementView() {
       return;
     }
 
+    const cleanImages = formImages.slice(0, MAX_PRODUCT_IMAGES);
     const payload = {
       id: editingProduct.id,
       name: formName.trim(),
@@ -248,8 +582,8 @@ export function ProductManagementView() {
       publicDescription: formDescription.trim(),
       category: formCategory,
       publicCategory: formCategory,
-      imageUrl: formImages[0] || null,
-      images: formImages,
+      imageUrl: cleanImages[0] || null,
+      images: cleanImages,
       published: formPublished,
       isCommercial: true,
     };
@@ -277,76 +611,161 @@ export function ProductManagementView() {
     }
   }
 
-  // --- Handlers: Media Management ---
+  // --- Handlers: Media & Gallery Management ---
   function handleSelectFromMediaLibrary(url: string) {
-    if (!formImages.includes(url)) {
-      setFormImages((prev) => [...prev, url]);
+    if (formImages.length >= MAX_PRODUCT_IMAGES) {
+      setErrorMessage(`Maximum limit of ${MAX_PRODUCT_IMAGES} images already reached. Remove an image before adding a new one.`);
+      return;
     }
+    if (formImages.includes(url)) {
+      setErrorMessage("This image is already in the product gallery.");
+      return;
+    }
+    setFormImages((prev) => (prev.length < MAX_PRODUCT_IMAGES && !prev.includes(url) ? [...prev, url] : prev));
+    setErrorMessage(null);
   }
 
   function handleRemoveImage(index: number) {
     setFormImages((prev) => prev.filter((_, idx) => idx !== index));
+    setErrorMessage(null);
+  }
+
+  function handleSetPrimary(index: number) {
+    if (index <= 0 || index >= formImages.length) return;
+    setFormImages((prev) => {
+      const selected = prev[index];
+      const rest = prev.filter((_, idx) => idx !== index);
+      return [selected, ...rest];
+    });
+    setErrorMessage(null);
+  }
+
+  function handleMoveImage(index: number, direction: "left" | "right") {
+    const targetIndex = direction === "left" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= formImages.length) return;
+    setFormImages((prev) => {
+      const copy = [...prev];
+      const temp = copy[index];
+      copy[index] = copy[targetIndex];
+      copy[targetIndex] = temp;
+      return copy;
+    });
+    setErrorMessage(null);
   }
 
   async function handleDirectFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+
+    const availableSlots = MAX_PRODUCT_IMAGES - formImages.length;
+    if (availableSlots <= 0) {
+      setErrorMessage(`Maximum limit of ${MAX_PRODUCT_IMAGES} images already reached. Remove an image to upload a new one.`);
+      return;
+    }
+
+    let filesToProcess = files;
+    let slotWarning: string | null = null;
+    if (files.length > availableSlots) {
+      filesToProcess = files.slice(0, availableSlots);
+      slotWarning = `Only ${availableSlots} more image slot${availableSlots > 1 ? "s" : ""} available. Accepted the first ${availableSlots} of ${files.length} selected files.`;
+      setErrorMessage(slotWarning);
+    } else {
+      setErrorMessage(null);
+    }
 
     setIsUploadingImage(true);
-    setErrorMessage(null);
+    const errors: string[] = [];
 
-    try {
-      // 1. Request presigned upload URL
-      const presignRes = await fetch("/api/admin/website/media/presign", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileSizeBytes: file.size,
-          mimeType: file.type || "image/jpeg",
-          category: "products",
-        }),
-      });
+    for (let i = 0; i < filesToProcess.length; i++) {
+      const file = filesToProcess[i];
+      setUploadStatusText(`Uploading ${i + 1} of ${filesToProcess.length}: ${file.name}...`);
 
-      const presignData = await presignRes.json();
-      if (!presignRes.ok || !presignData.success) {
-        throw new Error(presignData.message || "Failed to authorize image upload.");
+      const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+      const cadExts = [".step", ".stp", ".stl", ".3mf", ".obj"];
+      if (cadExts.includes(ext)) {
+        errors.push(`${file.name}: CAD files are prohibited in product gallery. Please upload JPEG, PNG, or WebP.`);
+        continue;
+      }
+      const allowed = [".jpg", ".jpeg", ".png", ".webp"];
+      if (!allowed.includes(ext)) {
+        errors.push(`${file.name}: Unsupported file format. Please upload JPEG, PNG, or WebP.`);
+        continue;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        errors.push(`${file.name}: File size exceeds 10 MB limit.`);
+        continue;
       }
 
-      // 2. Upload file directly if R2 is configured
-      if (presignData.storageConfigured && presignData.uploadUrl) {
-        const uploadRes = await fetch(presignData.uploadUrl, {
-          method: "PUT",
-          headers: { "Content-Type": presignData.mimeType || file.type || "image/jpeg" },
-          body: file,
+      try {
+        // 1. Request presigned upload URL
+        const presignRes = await fetch("/api/admin/website/media/presign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileSizeBytes: file.size,
+            mimeType: file.type || "image/jpeg",
+            category: "products",
+          }),
         });
-        if (!uploadRes.ok) {
-          throw new Error("Failed to upload image file to storage.");
+
+        const presignData = await presignRes.json();
+        if (!presignRes.ok || !presignData.success) {
+          throw new Error(presignData.message || "Failed to authorize image upload.");
         }
-      }
 
-      // 3. Register image in Media Library catalog
-      const regRes = await fetch("/api/admin/website/media/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileSizeBytes: file.size,
-          mimeType: file.type || "image/jpeg",
-          storageKey: presignData.storageKey,
-          publicUrl: presignData.publicUrl,
-        }),
-      });
+        // 2. Upload file directly if R2 is configured
+        if (presignData.storageConfigured && presignData.uploadUrl) {
+          const uploadRes = await fetch(presignData.uploadUrl, {
+            method: "PUT",
+            headers: { "Content-Type": presignData.mimeType || file.type || "image/jpeg" },
+            body: file,
+          });
+          if (!uploadRes.ok) {
+            throw new Error(`Failed to upload to storage (HTTP ${uploadRes.status}).`);
+          }
+        }
 
-      const regData = await regRes.json();
-      if (regRes.ok && regData.success) {
-        handleSelectFromMediaLibrary(presignData.publicUrl);
+        // 3. Register image in Media Library catalog
+        const regRes = await fetch("/api/admin/website/media/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileSizeBytes: file.size,
+            mimeType: file.type || "image/jpeg",
+            storageKey: presignData.storageKey,
+            publicUrl: presignData.publicUrl,
+            url: presignData.publicUrl,
+          }),
+        });
+
+        const regData = await regRes.json();
+        if (regRes.ok && regData.success) {
+          const newUrl = presignData.publicUrl;
+          setFormImages((prev) => {
+            if (prev.length < MAX_PRODUCT_IMAGES && !prev.includes(newUrl)) {
+              return [...prev, newUrl];
+            }
+            return prev;
+          });
+        } else {
+          throw new Error(regData.message || "Failed to register media asset.");
+        }
+      } catch (err: any) {
+        errors.push(`${file.name}: ${err.message || "Upload failed."}`);
       }
-    } catch (err: any) {
-      setErrorMessage(err.message || "Image upload failed.");
-    } finally {
-      setIsUploadingImage(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+
+    setIsUploadingImage(false);
+    setUploadStatusText("");
+
+    if (errors.length > 0) {
+      setErrorMessage(slotWarning ? `${slotWarning} | ${errors.join(" | ")}` : errors.join(" | "));
+    } else if (slotWarning) {
+      setErrorMessage(slotWarning);
     }
   }
 
@@ -496,30 +915,11 @@ export function ProductManagementView() {
                     {/* Product Image & Name */}
                     <td style={{ padding: "14px 18px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <div
-                          style={{
-                            width: "48px",
-                            height: "48px",
-                            borderRadius: "10px",
-                            background: "#F1F5F9",
-                            overflow: "hidden",
-                            flexShrink: 0,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            border: "1px solid var(--bm-border-subtle)",
-                          }}
-                        >
-                          {p.imageUrl ? (
-                            <img
-                              src={p.imageUrl}
-                              alt={p.name}
-                              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                            />
-                          ) : (
-                            <HugeIcon icon={PackageIcon} size={22} color="#94A3B8" />
-                          )}
-                        </div>
+                        <ProductTableThumbnail
+                          imageUrl={p.imageUrl}
+                          name={p.name}
+                          imagesCount={p.images?.length}
+                        />
                         <div>
                           <div style={{ fontWeight: 600, color: "var(--bm-text-primary)", fontSize: "14px" }}>
                             {p.name}
@@ -1018,13 +1418,28 @@ export function ProductManagementView() {
 
               {/* 5. Product Images (Gallery, Select from Media Library, Upload) */}
               <div style={{ borderTop: "1px solid var(--bm-border-subtle)", paddingTop: "16px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "10px" }}>
                   <div>
-                    <label style={{ fontSize: "13px", fontWeight: 700, color: "var(--bm-text-primary)", display: "block" }}>
-                      Product Images
-                    </label>
-                    <span style={{ fontSize: "11px", color: "var(--bm-text-secondary)" }}>
-                      First image serves as the main storefront card photo.
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <label style={{ fontSize: "13px", fontWeight: 700, color: "var(--bm-text-primary)", display: "block" }}>
+                        Product Images
+                      </label>
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          padding: "2px 8px",
+                          borderRadius: "12px",
+                          background: formImages.length >= MAX_PRODUCT_IMAGES ? "#FEE2E2" : "#F1F5F9",
+                          color: formImages.length >= MAX_PRODUCT_IMAGES ? "#DC2626" : "var(--bm-text-secondary)",
+                          border: formImages.length >= MAX_PRODUCT_IMAGES ? "1px solid #FECACA" : "1px solid var(--bm-border-subtle)",
+                        }}
+                      >
+                        {formImages.length} / {MAX_PRODUCT_IMAGES} images
+                      </span>
+                    </div>
+                    <span style={{ fontSize: "11px", color: "var(--bm-text-secondary)", display: "block", marginTop: "2px" }}>
+                      Image #1 is authoritative storefront primary photo. Drag or use arrows to reorder.
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: "8px" }}>
@@ -1033,88 +1448,158 @@ export function ProductManagementView() {
                       ref={fileInputRef}
                       onChange={handleDirectFileUpload}
                       accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                      multiple
                       style={{ display: "none" }}
                     />
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      disabled={isUploadingImage}
+                      disabled={isUploadingImage || formImages.length >= MAX_PRODUCT_IMAGES}
                       className="bm-btn bm-btn-secondary"
-                      style={{ padding: "6px 12px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" }}
+                      style={{
+                        padding: "6px 12px",
+                        fontSize: "12px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        opacity: isUploadingImage || formImages.length >= MAX_PRODUCT_IMAGES ? 0.6 : 1,
+                        cursor: isUploadingImage || formImages.length >= MAX_PRODUCT_IMAGES ? "not-allowed" : "pointer",
+                      }}
+                      title={formImages.length >= MAX_PRODUCT_IMAGES ? `Maximum ${MAX_PRODUCT_IMAGES} images reached` : "Upload image files"}
                     >
                       <HugeIcon icon={Upload01Icon} size={14} />
-                      <span>{isUploadingImage ? "Uploading..." : "Upload Photo"}</span>
+                      <span>{isUploadingImage ? "Uploading..." : "Upload Photos"}</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setIsMediaPickerOpen(true)}
+                      disabled={isUploadingImage || formImages.length >= MAX_PRODUCT_IMAGES}
                       className="bm-btn bm-btn-secondary"
-                      style={{ padding: "6px 12px", fontSize: "12px", display: "inline-flex", alignItems: "center", gap: "6px" }}
+                      style={{
+                        padding: "6px 12px",
+                        fontSize: "12px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        opacity: isUploadingImage || formImages.length >= MAX_PRODUCT_IMAGES ? 0.6 : 1,
+                        cursor: isUploadingImage || formImages.length >= MAX_PRODUCT_IMAGES ? "not-allowed" : "pointer",
+                      }}
+                      title={formImages.length >= MAX_PRODUCT_IMAGES ? `Maximum ${MAX_PRODUCT_IMAGES} images reached` : "Pick from media library"}
                     >
                       <HugeIcon icon={Image01Icon} size={14} />
-                      <span>Select from Media Library</span>
+                      <span>Media Library</span>
                     </button>
                   </div>
                 </div>
 
+                {/* Upload Status / Progress Indicator */}
+                {isUploadingImage && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "8px 12px",
+                      marginBottom: "12px",
+                      borderRadius: "8px",
+                      background: "#EFF6FF",
+                      border: "1px solid #BFDBFE",
+                      fontSize: "12px",
+                      color: "#1E40AF",
+                      fontWeight: 500,
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "inline-block",
+                        width: "12px",
+                        height: "12px",
+                        border: "2px solid #3B82F6",
+                        borderTopColor: "transparent",
+                        borderRadius: "50%",
+                        animation: "spin 0.8s linear infinite",
+                      }}
+                    />
+                    <span>{uploadStatusText || "Processing upload..."}</span>
+                  </div>
+                )}
+
                 {/* Images Preview Grid */}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", minHeight: "80px", background: "#F8FAFC", padding: "12px", borderRadius: "12px", border: "1px dashed var(--bm-border-subtle)" }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
+                    gap: "12px",
+                    background: "#F8FAFC",
+                    padding: "12px",
+                    borderRadius: "12px",
+                    border: "1px dashed var(--bm-border-subtle)",
+                    minHeight: "130px",
+                  }}
+                >
                   {formImages.length === 0 ? (
-                    <div style={{ width: "100%", textAlign: "center", padding: "16px 0", color: "var(--bm-text-muted)", fontSize: "12px" }}>
-                      No product images added yet. Click &ldquo;Select from Media Library&rdquo; or &ldquo;Upload Photo&rdquo;.
+                    <div
+                      style={{
+                        gridColumn: "1 / -1",
+                        textAlign: "center",
+                        padding: "24px 0",
+                        color: "var(--bm-text-muted)",
+                        fontSize: "13px",
+                      }}
+                    >
+                      No product images added yet. Click &ldquo;Upload Photos&rdquo; or &ldquo;Media Library&rdquo; to add up to {MAX_PRODUCT_IMAGES} images.
                     </div>
                   ) : (
-                    formImages.map((imgUrl, idx) => (
-                      <div
-                        key={idx}
-                        style={{
-                          position: "relative",
-                          width: "90px",
-                          height: "90px",
-                          borderRadius: "8px",
-                          border: idx === 0 ? "2px solid var(--bm-accent)" : "1px solid var(--bm-border-subtle)",
-                          overflow: "hidden",
-                          background: "white",
-                        }}
-                      >
-                        <img src={imgUrl} alt={`Product ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        {idx === 0 && (
-                          <span
-                            style={{
-                              position: "absolute",
-                              bottom: 3,
-                              left: 3,
-                              background: "var(--bm-accent)",
-                              color: "white",
-                              fontSize: "8px",
-                              fontWeight: 700,
-                              padding: "2px 4px",
-                              borderRadius: "3px",
-                            }}
-                          >
-                            MAIN
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(idx)}
-                          style={{
-                            position: "absolute",
-                            top: 3,
-                            right: 3,
-                            background: "rgba(220,38,38,0.85)",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "4px",
-                            padding: "2px",
-                            cursor: "pointer",
-                          }}
-                          title="Remove image"
-                        >
-                          <HugeIcon icon={Delete01Icon} size={12} />
-                        </button>
-                      </div>
-                    ))
+                    formImages.map((imgUrl, idx) => {
+                      const isPrimary = idx === 0;
+                      return (
+                        <GalleryThumbnailCard
+                          key={`${imgUrl}-${idx}`}
+                          imgUrl={imgUrl}
+                          idx={idx}
+                          isPrimary={isPrimary}
+                          isUploadingImage={isUploadingImage}
+                          onRemove={() => handleRemoveImage(idx)}
+                          onMoveLeft={() => handleMoveImage(idx, "left")}
+                          onMoveRight={() => handleMoveImage(idx, "right")}
+                          onSetPrimary={() => handleSetPrimary(idx)}
+                          canMoveRight={idx < formImages.length - 1}
+                        />
+                      );
+                    })
+                  )}
+
+                  {/* Add Image Slot Placeholder (if under limit) */}
+                  {formImages.length > 0 && formImages.length < MAX_PRODUCT_IMAGES && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingImage}
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "6px",
+                        minHeight: "135px",
+                        borderRadius: "10px",
+                        border: "2px dashed var(--bm-border-subtle)",
+                        background: "white",
+                        cursor: isUploadingImage ? "not-allowed" : "pointer",
+                        opacity: isUploadingImage ? 0.5 : 1,
+                        color: "var(--bm-text-muted)",
+                        padding: "12px",
+                      }}
+                      title="Upload an additional image"
+                    >
+                      <HugeIcon icon={Upload01Icon} size={20} />
+                      <span style={{ fontSize: "11px", fontWeight: 600 }}>
+                        + Add Image #{formImages.length + 1}
+                      </span>
+                      <span style={{ fontSize: "10px" }}>
+                        ({MAX_PRODUCT_IMAGES - formImages.length} slots left)
+                      </span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -1160,11 +1645,17 @@ export function ProductManagementView() {
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || isUploadingImage}
                   className="bm-btn bm-btn-primary"
-                  style={{ padding: "10px 22px", fontSize: "13px", fontWeight: 600 }}
+                  style={{
+                    padding: "10px 22px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    opacity: saving || isUploadingImage ? 0.6 : 1,
+                    cursor: saving || isUploadingImage ? "not-allowed" : "pointer",
+                  }}
                 >
-                  {saving ? "Saving..." : "Save Product Details"}
+                  {saving ? "Saving..." : isUploadingImage ? "Uploading Photos..." : "Save Product Details"}
                 </button>
               </div>
             </form>

@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const url = sanitizeImageUrl(body.url);
+    const url = sanitizeImageUrl(body.url || body.publicUrl);
     if (!url) {
       return NextResponse.json(
         { error: 'INVALID_URL', message: 'A valid public HTTPS or local image URL is required.' },
