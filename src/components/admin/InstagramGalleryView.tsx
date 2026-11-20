@@ -15,6 +15,7 @@ import {
   Image01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeIcon } from "@/components/hugeIcons";
+import { MediaLibraryView } from "@/components/admin/MediaLibraryView";
 
 interface InstagramItem {
   id: string;
@@ -42,6 +43,9 @@ export function InstagramGalleryView() {
   const [saving, setSaving] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
 
+  // Media Library Picker State
+  const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
+
   async function fetchItems() {
     setLoading(true);
     try {
@@ -68,6 +72,7 @@ export function InstagramGalleryView() {
     setFormPostUrl("");
     setFormPublished(true);
     setModalError(null);
+    setIsMediaPickerOpen(false);
     setIsModalOpen(true);
   }
 
@@ -78,6 +83,7 @@ export function InstagramGalleryView() {
     setFormPostUrl(item.postUrl || "");
     setFormPublished(item.published);
     setModalError(null);
+    setIsMediaPickerOpen(false);
     setIsModalOpen(true);
   }
 
@@ -504,22 +510,173 @@ export function InstagramGalleryView() {
               )}
 
               <div>
-                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", display: "block", marginBottom: "4px" }}>
-                  Photograph URL *
-                </label>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "6px",
+                    gap: "8px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <label
+                    htmlFor="instagram-photo-url-input"
+                    style={{
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: "var(--bm-text-secondary)",
+                      margin: 0,
+                    }}
+                  >
+                    Photograph URL *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsMediaPickerOpen(true)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "4px 10px",
+                      borderRadius: "6px",
+                      border: "1px solid var(--bm-border-subtle)",
+                      background: "#F8FAFC",
+                      color: "var(--bm-text-primary)",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <HugeIcon icon={Image01Icon} size={14} />
+                    <span>Choose from Media Library</span>
+                  </button>
+                </div>
                 <input
+                  id="instagram-photo-url-input"
                   type="text"
                   required
                   value={formImageUrl}
                   onChange={(e) => setFormImageUrl(e.target.value)}
                   placeholder="https://... or /assets/images/..."
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--bm-border-subtle)", fontSize: "13px" }}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--bm-border-subtle)",
+                    fontSize: "13px",
+                    background: "white",
+                    color: "var(--bm-text-primary)",
+                    boxSizing: "border-box",
+                  }}
                 />
               </div>
 
               {formImageUrl && (
-                <div style={{ width: "120px", height: "120px", borderRadius: "10px", overflow: "hidden", border: "1px solid var(--bm-border-subtle)", background: "#F1F5F9" }}>
-                  <img src={formImageUrl} alt="Preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "14px",
+                    alignItems: "center",
+                    padding: "12px",
+                    borderRadius: "10px",
+                    background: "#F8FAFC",
+                    border: "1px solid var(--bm-border-subtle)",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "80px",
+                      height: "80px",
+                      borderRadius: "8px",
+                      overflow: "hidden",
+                      border: "1px solid var(--bm-border-subtle)",
+                      background: "#E2E8F0",
+                      flexShrink: 0,
+                      position: "relative",
+                    }}
+                  >
+                    <img
+                      src={formImageUrl}
+                      alt="Selected photograph preview"
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.opacity = "0.3";
+                      }}
+                    />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        color: "var(--bm-text-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        marginBottom: "4px",
+                      }}
+                    >
+                      Selected Photograph Preview
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--bm-text-primary)",
+                        fontFamily: "monospace",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        maxWidth: "100%",
+                        marginBottom: "8px",
+                      }}
+                      title={formImageUrl}
+                    >
+                      {formImageUrl}
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      <button
+                        type="button"
+                        onClick={() => setIsMediaPickerOpen(true)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "4px 10px",
+                          borderRadius: "6px",
+                          border: "1px solid var(--bm-border-subtle)",
+                          background: "white",
+                          color: "var(--bm-text-primary)",
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <HugeIcon icon={Image01Icon} size={12} />
+                        <span>Change Photo</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormImageUrl("")}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "4px 8px",
+                          borderRadius: "6px",
+                          border: "none",
+                          background: "transparent",
+                          color: "#DC2626",
+                          fontSize: "11px",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <HugeIcon icon={Delete01Icon} size={12} />
+                        <span>Remove</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -596,6 +753,83 @@ export function InstagramGalleryView() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Media Library Picker Modal */}
+      {isMediaPickerOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="instagram-media-picker-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.65)",
+            backdropFilter: "blur(4px)",
+            zIndex: 1100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsMediaPickerOpen(false);
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "1100px",
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                padding: "16px 24px",
+                borderBottom: "1px solid var(--bm-border-subtle)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                background: "white",
+              }}
+            >
+              <div>
+                <h3
+                  id="instagram-media-picker-title"
+                  style={{ fontSize: "16px", fontWeight: 700, color: "var(--bm-text-primary)", margin: 0 }}
+                >
+                  Select Photograph from Media Library
+                </h3>
+                <p style={{ fontSize: "12px", color: "var(--bm-text-muted)", margin: "2px 0 0" }}>
+                  Choose an existing uploaded photograph or upload a new photo directly to Cloudflare R2 storage.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMediaPickerOpen(false)}
+                aria-label="Close Media Library Picker"
+                style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--bm-text-muted)" }}
+              >
+                <HugeIcon icon={CancelCircleIcon} size={22} />
+              </button>
+            </div>
+
+            <div style={{ padding: "20px", overflowY: "auto", flex: 1, background: "#F8FAFC" }}>
+              <MediaLibraryView
+                onSelectImage={(url) => {
+                  setFormImageUrl(url);
+                  setIsMediaPickerOpen(false);
+                }}
+              />
+            </div>
           </div>
         </div>
       )}
