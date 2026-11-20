@@ -35,6 +35,7 @@ export function getPublicR2Config(): PublicR2Config | null {
 export function isPublicMediaStorageConfigured(): boolean {
   return getPublicR2Config() !== null;
 }
+export const isPublicR2Configured = isPublicMediaStorageConfigured;
 
 export function generatePublicMediaStorageKey(
   category: 'products' | 'instagram' | 'general',
@@ -157,20 +158,43 @@ export function clearMockMediaObjects(): void {
   registeredMockMediaObjects.clear();
 }
 
+export interface PublicMediaVerificationOptions {
+  testMockHeader?: string | null;
+  publicDomainOverride?: string;
+  customFetch?: typeof fetch;
+  timeoutMs?: number;
+  forceLiveVerification?: boolean;
+}
+
 /**
  * Performs server-side verification of an uploaded public media asset.
- * In production with R2 configured: issues SigV4 HEAD request to R2 to verify existence, size (<=10MB), and MIME.
+ * In production with R2 configured: issues a standard unauthenticated HEAD request
+ * to the configured public media domain (R2_PUBLIC_DOMAIN) to verify public reachability, size (<=10MB), and MIME.
  * In local/test environments: uses mock object registry or deterministic test headers.
  */
 export async function verifyPublicMediaObject(
   storageKey: string,
   expectedSizeBytes: number,
   expectedMimeType: string,
-  options?: { testMockHeader?: string | null }
+  options?: PublicMediaVerificationOptions
 ): Promise<PublicMediaVerificationResult> {
   const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
-  // 1. Check in-memory test registry
+  // 1. Strict storage key validation (format, allowed prefix, path traversal prevention)
+  if (
+    !storageKey ||
+    typeof storageKey !== 'string' ||
+    !storageKey.startsWith('media/') ||
+    storageKey.includes('..') ||
+    storageKey.includes('\\')
+  ) {
+    return {
+      verified: false,
+      error: 'INVALID_STORAGE_KEY: Storage key must begin with "media/" and contain no path traversal characters.',
+    };
+  }
+
+  // 2. Check in-memory test registry (for test environments)
   if (registeredMockMediaObjects.has(storageKey)) {
     const meta = registeredMockMediaObjects.get(storageKey)!;
     if (meta.sizeBytes > MAX_BYTES) {
@@ -194,8 +218,8 @@ export async function verifyPublicMediaObject(
     };
   }
 
-  // 2. In non-production testing: check deterministic test mock header
-  if (process.env.NODE_ENV !== 'production') {
+  // 3. In non-production testing: check deterministic test mock header
+  if (process.env.NODE_ENV !== 'production' && !options?.forceLiveVerification) {
     const mockHdr = options?.testMockHeader?.trim().toLowerCase();
     if (mockHdr === 'oversized') {
       return {
@@ -225,56 +249,85 @@ export async function verifyPublicMediaObject(
     }
   }
 
-  // 3. Live Cloudflare R2 verification via AWS SigV4 HEAD request
+  // 4. Live Cloudflare R2 verification via unauthenticated public domain HEAD request
   const config = getPublicR2Config();
-  if (config) {
+  const shouldVerifyLive =
+    Boolean(config) ||
+    options?.forceLiveVerification === true ||
+    options?.publicDomainOverride !== undefined ||
+    process.env.NODE_ENV === 'production';
+
+  if (shouldVerifyLive) {
+    const rawPublicDomain =
+      options?.publicDomainOverride !== undefined
+        ? options.publicDomainOverride
+        : config?.publicDomain;
+
+    const publicDomain = rawPublicDomain?.trim();
+
+    if (!publicDomain) {
+      return {
+        verified: false,
+        error: 'CONFIGURATION_ERROR: Public media domain (R2_PUBLIC_DOMAIN) is not configured for public verification.',
+      };
+    }
+
+    let parsedDomainUrl: URL;
     try {
-      const now = new Date();
-      const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, '');
-      const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
-      const region = 'auto';
-      const service = 's3';
-      const host = `${config.accountId}.r2.cloudflarestorage.com`;
-      const canonicalUri = `/${config.bucketName}/${storageKey.split('/').map(encodeURIComponent).join('/')}`;
+      parsedDomainUrl = new URL(publicDomain);
+      if (parsedDomainUrl.protocol !== 'https:' && parsedDomainUrl.protocol !== 'http:') {
+        return {
+          verified: false,
+          error: 'CONFIGURATION_ERROR: Public media domain must use http or https protocol.',
+        };
+      }
+    } catch {
+      return {
+        verified: false,
+        error: 'CONFIGURATION_ERROR: Public media domain (R2_PUBLIC_DOMAIN) is not a valid URL.',
+      };
+    }
 
-      const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
-      const signedHeaders = 'host;x-amz-date';
-      const canonicalHeaders = `host:${host}\nx-amz-date:${amzDate}\n`;
-      const payloadHash = crypto.createHash('sha256').update('', 'utf8').digest('hex');
+    // Securely construct target verification URL exclusively from trusted domain and encoded storage key segments
+    const cleanBaseDomain = publicDomain.replace(/\/+$/, '');
+    const encodedKey = storageKey
+      .split('/')
+      .map((segment) => encodeURIComponent(segment))
+      .join('/');
+    const targetUrl = `${cleanBaseDomain}/${encodedKey}`;
 
-      const canonicalRequest = [
-        'HEAD',
-        canonicalUri,
-        '',
-        canonicalHeaders,
-        signedHeaders,
-        payloadHash,
-      ].join('\n');
+    // Verify SSRF safety: ensure target URL origin strictly matches the configured public domain
+    try {
+      const parsedTarget = new URL(targetUrl);
+      if (parsedTarget.origin !== parsedDomainUrl.origin) {
+        return {
+          verified: false,
+          error: 'SECURITY_ERROR: Target URL origin mismatch with configured public domain.',
+        };
+      }
+    } catch {
+      return {
+        verified: false,
+        error: 'SECURITY_ERROR: Malformed verification URL constructed.',
+      };
+    }
 
-      const hashedCanonicalRequest = crypto.createHash('sha256').update(canonicalRequest, 'utf8').digest('hex');
-      const stringToSign = [
-        'AWS4-HMAC-SHA256',
-        amzDate,
-        credentialScope,
-        hashedCanonicalRequest,
-      ].join('\n');
+    const timeoutMs = options?.timeoutMs ?? 5000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-      const kDate = hmac(`AWS4${config.secretAccessKey}`, dateStamp);
-      const kRegion = hmac(kDate, region);
-      const kService = hmac(kRegion, service);
-      const kSigning = hmac(kService, 'aws4_request');
-      const signature = crypto.createHmac('sha256', kSigning).update(stringToSign, 'utf8').digest('hex');
-
-      const authorizationHeader = `AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-
-      const response = await fetch(`https://${host}${canonicalUri}`, {
+    try {
+      const fetchFn = options?.customFetch ?? fetch;
+      const response = await fetchFn(targetUrl, {
         method: 'HEAD',
+        cache: 'no-store',
+        signal: controller.signal,
         headers: {
-          Host: host,
-          'x-amz-date': amzDate,
-          Authorization: authorizationHeader,
+          'Accept': 'image/*',
+          'User-Agent': 'PrintStudio-MediaVerifier/1.0',
         },
       });
+      clearTimeout(timeoutId);
 
       if (response.status === 404) {
         return {
@@ -283,52 +336,67 @@ export async function verifyPublicMediaObject(
         };
       }
 
+      if (response.status === 403) {
+        return {
+          verified: false,
+          error: 'STORAGE_INACCESSIBLE: Public media object is forbidden or inaccessible (HTTP 403). Ensure public bucket access or domain routing is active.',
+        };
+      }
+
       if (!response.ok) {
         return {
           verified: false,
-          error: `STORAGE_ERROR: Failed to inspect uploaded media object in storage (HTTP ${response.status}).`,
+          error: `STORAGE_ERROR: Failed to inspect uploaded media object in public storage (HTTP ${response.status}).`,
         };
       }
 
       const contentLengthHeader = response.headers.get('content-length');
       const actualSize = contentLengthHeader ? parseInt(contentLengthHeader, 10) : expectedSizeBytes;
 
-      if (actualSize > MAX_BYTES) {
+      if (!isNaN(actualSize) && actualSize > MAX_BYTES) {
         return {
           verified: false,
           error: `OBJECT_TOO_LARGE: Uploaded media object exceeds the 10 MB limit (${actualSize} bytes).`,
         };
       }
 
-      const contentTypeHeader = (response.headers.get('content-type') || expectedMimeType).trim().toLowerCase();
+      const rawContentType = (response.headers.get('content-type') || expectedMimeType).trim().toLowerCase();
+      const cleanContentType = rawContentType.split(';')[0].trim();
       if (
-        contentTypeHeader !== 'image/jpeg' &&
-        contentTypeHeader !== 'image/png' &&
-        contentTypeHeader !== 'image/webp'
+        cleanContentType !== 'image/jpeg' &&
+        cleanContentType !== 'image/png' &&
+        cleanContentType !== 'image/webp'
       ) {
         return {
           verified: false,
-          error: `INVALID_CONTENT_TYPE: Content type "${contentTypeHeader}" is not an accepted image format. Allowed: image/jpeg, image/png, image/webp.`,
+          error: `INVALID_CONTENT_TYPE: Content type "${cleanContentType}" is not an accepted image format. Allowed: image/jpeg, image/png, image/webp.`,
         };
       }
 
-      const etagHeader = response.headers.get('etag') || undefined;
+      const etagHeader = response.headers.get('etag')?.replace(/"/g, '') || undefined;
 
       return {
         verified: true,
-        actualSizeBytes: actualSize,
-        contentType: contentTypeHeader,
+        actualSizeBytes: isNaN(actualSize) ? expectedSizeBytes : actualSize,
+        contentType: cleanContentType,
         etag: etagHeader,
       };
     } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError' || err.name === 'TimeoutError' || controller.signal.aborted) {
+        return {
+          verified: false,
+          error: 'STORAGE_TIMEOUT: Verification request to public storage timed out.',
+        };
+      }
       return {
         verified: false,
-        error: `STORAGE_CONNECTIVITY_ERROR: Unable to communicate with public storage: ${err.message}`,
+        error: `STORAGE_CONNECTIVITY_ERROR: Unable to communicate with public storage: ${err.message || 'Network request failed'}`,
       };
     }
   }
 
-  // If R2 is not configured: in development/test without R2 credentials,
+  // 5. In development/test without R2 credentials:
   // allow local reference registration with validated size and MIME
   return {
     verified: true,
