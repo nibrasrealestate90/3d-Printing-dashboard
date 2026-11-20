@@ -702,7 +702,6 @@ const NAV_GROUPS = [
   {
     group: "OPERATIONS",
     items: [
-      { key: "reminders", label: "Maintenance Reminders", icon: APP_ICONS.navReminders },
       { key: "automation-history", label: "Sync History", icon: APP_ICONS.navAutomation },
       { key: "settings", label: "Settings", icon: APP_ICONS.navSettings }
     ]
