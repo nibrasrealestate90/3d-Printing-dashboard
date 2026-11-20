@@ -14,6 +14,7 @@ export interface StorefrontProduct {
   sku: string;
   name: string;
   description: string;
+  categoryId?: string;
   category: string;
   sellingPrice: number;
   currency: string;
@@ -37,6 +38,18 @@ export interface InstagramGalleryItem {
   postUrl?: string;
   published: boolean;
   order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CategoryItem {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  imageUrl: string;
+  order: number;
+  isPublished: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -257,6 +270,7 @@ export function sanitizeProductForStorefront(row: {
     sku: String(data.sku || ''),
     name: displayName,
     description: displayDescription,
+    categoryId: data.categoryId ? String(data.categoryId) : undefined,
     category: String(data.publicCategory || data.category || '3D Prints').trim(),
     sellingPrice,
     currency: 'AED',
@@ -558,6 +572,104 @@ export function validateInstagramItem(payload: any): {
       postUrl,
       published,
       order,
+    },
+  };
+}
+
+// ----------------------------------------------------------------------------
+// Product Category Item Validation
+// ----------------------------------------------------------------------------
+
+export function validateCategoryItem(
+  payload: any,
+  existingCategories: CategoryItem[] = [],
+  currentId?: string
+): {
+  valid: boolean;
+  errors: Record<string, string>;
+  sanitized?: Partial<CategoryItem>;
+} {
+  const errors: Record<string, string> = {};
+  if (!payload || typeof payload !== 'object') {
+    return { valid: false, errors: { _general: 'Invalid payload.' } };
+  }
+
+  // Name validation
+  const name = String(payload.name || '').trim();
+  if (!name) {
+    errors.name = 'Category name is required.';
+  } else if (name.length > 100) {
+    errors.name = 'Category name cannot exceed 100 characters.';
+  } else {
+    const isDuplicateName = existingCategories.some(
+      (c) => c.id !== currentId && c.name.trim().toLowerCase() === name.toLowerCase()
+    );
+    if (isDuplicateName) {
+      errors.name = `A category with the name "${name}" already exists.`;
+    }
+  }
+
+  // Slug validation
+  let slug = String(payload.slug || '').trim().toLowerCase();
+  if (!slug && name) {
+    slug = slugify(name);
+  }
+  if (!slug) {
+    errors.slug = 'Category slug is required.';
+  } else if (slug.length > 100) {
+    errors.slug = 'Category slug cannot exceed 100 characters.';
+  } else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
+    errors.slug = 'Category slug must contain only lowercase alphanumeric characters and single hyphens.';
+  } else {
+    const isDuplicateSlug = existingCategories.some(
+      (c) => c.id !== currentId && c.slug.trim().toLowerCase() === slug.toLowerCase()
+    );
+    if (isDuplicateSlug) {
+      errors.slug = `A category with the slug "${slug}" already exists.`;
+    }
+  }
+
+  // Image URL validation (required)
+  const imageUrl = sanitizeImageUrl(payload.imageUrl);
+  if (!imageUrl) {
+    errors.imageUrl = 'A valid image URL is required (HTTPS or local path, no data: or javascript:).';
+  }
+
+  // Description validation (optional)
+  let description: string | undefined;
+  if (typeof payload.description === 'string' && payload.description.trim()) {
+    const trimmedDesc = payload.description.trim();
+    if (trimmedDesc.length > 500) {
+      errors.description = 'Description cannot exceed 500 characters.';
+    } else {
+      description = trimmedDesc;
+    }
+  }
+
+  const isPublished = typeof payload.isPublished === 'boolean'
+    ? payload.isPublished
+    : typeof payload.published === 'boolean'
+      ? payload.published
+      : true;
+
+  const order = typeof payload.order === 'number' && Number.isFinite(payload.order)
+    ? Math.round(payload.order)
+    : 0;
+
+  if (Object.keys(errors).length > 0) {
+    return { valid: false, errors };
+  }
+
+  return {
+    valid: true,
+    errors: {},
+    sanitized: {
+      name,
+      slug,
+      description: description || '',
+      imageUrl: imageUrl!,
+      order,
+      isPublished,
     },
   };
 }

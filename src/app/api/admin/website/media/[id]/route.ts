@@ -79,8 +79,23 @@ export async function DELETE(
       }
     }
 
-    // If any published content references this image, reject deletion
-    if (referencingProducts.length > 0 || referencingInstagram.length > 0) {
+    // 3. Check if referenced by any product category (including unpublished categories)
+    const catRows = await sql`
+      SELECT data
+      FROM public.ledger_collections
+      WHERE collection_name = 'website_content' AND record_id = 'categories'
+      LIMIT 1;
+    `;
+    const catItems: any[] = Array.isArray(catRows[0]?.data?.items) ? catRows[0].data.items : [];
+    const referencingCategories: string[] = [];
+    for (const cat of catItems) {
+      if (cat.imageUrl === targetItem.url) {
+        referencingCategories.push(cat.name || cat.id);
+      }
+    }
+
+    // If any published content or category references this image, reject deletion
+    if (referencingProducts.length > 0 || referencingInstagram.length > 0 || referencingCategories.length > 0) {
       const reasons: string[] = [];
       if (referencingProducts.length > 0) {
         reasons.push(`Published products: ${referencingProducts.join(', ')}`);
@@ -88,11 +103,14 @@ export async function DELETE(
       if (referencingInstagram.length > 0) {
         reasons.push(`Published Instagram posts: ${referencingInstagram.join(', ')}`);
       }
+      if (referencingCategories.length > 0) {
+        reasons.push(`Categories: ${referencingCategories.join(', ')}`);
+      }
 
       return NextResponse.json(
         {
           error: 'MEDIA_IN_USE',
-          message: `Cannot delete media asset because it is currently referenced by published content. Unpublish or replace the image in referencing content before deleting.`,
+          message: `Cannot delete media asset because it is currently referenced by content (${reasons.join('; ')}). Replace or remove the image in referencing content before deleting.`,
           referencingContent: reasons,
         },
         { status: 409 }

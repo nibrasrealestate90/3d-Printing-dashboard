@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { sql } from '@/lib/db';
 import { verifyServerSession } from '@/lib/server-auth';
 import { logAuditEvent, extractClientIp } from '@/lib/auth';
-import { sanitizeImageUrl, slugify } from '@/lib/storefront';
+import { sanitizeImageUrl, slugify, CategoryItem } from '@/lib/storefront';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
         name: String(d.publicName || d.name || 'Untitled Product'),
         internalName: String(d.name || ''),
         sku: String(d.sku || ''),
+        categoryId: d.categoryId ? String(d.categoryId) : undefined,
         category: String(d.publicCategory || d.category || '3D Prints'),
         sellingPrice,
         currency: 'AED',
@@ -157,7 +158,7 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      const catCheck = String(body.category || body.publicCategory || '').trim();
+      const catCheck = String(body.category || body.publicCategory || body.categoryId || '').trim();
       if (!catCheck) {
         return NextResponse.json(
           { error: 'VALIDATION_ERROR', message: 'Product category is required to publish.' },
@@ -185,7 +186,6 @@ export async function POST(req: NextRequest) {
       ? slugify(body.slug.trim())
       : `${slugify(name)}-${id.replace(/^prod_/, '').slice(0, 8)}`;
 
-    const category = String(body.category || '3D Prints').trim();
     const publicDescription = String(body.publicDescription || body.description || '').trim();
 
     // Multi-Image Gallery Processing (Authoritative max 6 images)
@@ -245,6 +245,113 @@ export async function POST(req: NextRequest) {
     const isNew = existing.length === 0;
     const existingData = isNew ? {} : existing[0].data || {};
 
+    // -------------------------------------------------------------------------
+    // Dynamic Category Validation & Resolution (Phase 3)
+    // -------------------------------------------------------------------------
+    let availableCategories: CategoryItem[] = [];
+    const catRows = await sql`
+      SELECT data
+      FROM public.ledger_collections
+      WHERE collection_name = 'website_content' AND record_id = 'categories'
+      LIMIT 1;
+    `;
+    if (catRows.length > 0 && Array.isArray(catRows[0].data?.items)) {
+      availableCategories = catRows[0].data.items;
+    }
+
+    let resolvedCategoryId: string | undefined = undefined;
+    let resolvedCategoryName: string = '';
+
+    const inputCategoryId = typeof body.categoryId === 'string' && body.categoryId.trim()
+      ? body.categoryId.trim()
+      : undefined;
+    const inputCategoryName = typeof body.category === 'string' && body.category.trim()
+      ? body.category.trim()
+      : typeof body.publicCategory === 'string' && body.publicCategory.trim()
+        ? body.publicCategory.trim()
+        : '';
+
+    if (inputCategoryId) {
+      const targetCategory = availableCategories.find((c) => c.id === inputCategoryId);
+      if (!targetCategory) {
+        if (availableCategories.length > 0) {
+          return NextResponse.json(
+            { error: 'VALIDATION_ERROR', message: `Invalid category ID "${inputCategoryId}". Category does not exist.` },
+            { status: 400 }
+          );
+        } else {
+          resolvedCategoryId = inputCategoryId;
+          resolvedCategoryName = inputCategoryName || '3D Prints';
+        }
+      } else {
+        if (!targetCategory.isPublished) {
+          const isExistingAssignment = !isNew && (
+            existingData.categoryId === targetCategory.id ||
+            existingData.category?.toLowerCase() === targetCategory.name.toLowerCase() ||
+            existingData.publicCategory?.toLowerCase() === targetCategory.name.toLowerCase()
+          );
+          if (!isExistingAssignment) {
+            return NextResponse.json(
+              { error: 'VALIDATION_ERROR', message: `Category "${targetCategory.name}" is unpublished and cannot be assigned to products.` },
+              { status: 400 }
+            );
+          }
+        }
+        resolvedCategoryId = targetCategory.id;
+        resolvedCategoryName = targetCategory.name;
+      }
+    } else if (inputCategoryName) {
+      const matched = availableCategories.find(
+        (c) => c.name.toLowerCase() === inputCategoryName.toLowerCase()
+      );
+      if (matched) {
+        if (!matched.isPublished) {
+          const isExistingAssignment = !isNew && (
+            existingData.categoryId === matched.id ||
+            existingData.category?.toLowerCase() === matched.name.toLowerCase() ||
+            existingData.publicCategory?.toLowerCase() === matched.name.toLowerCase()
+          );
+          if (!isExistingAssignment) {
+            return NextResponse.json(
+              { error: 'VALIDATION_ERROR', message: `Category "${matched.name}" is unpublished and cannot be assigned to products.` },
+              { status: 400 }
+            );
+          }
+        }
+        resolvedCategoryId = matched.id;
+        resolvedCategoryName = matched.name;
+      } else {
+        if (availableCategories.length > 0) {
+          const isExistingLegacy = !isNew && (
+            existingData.category?.toLowerCase() === inputCategoryName.toLowerCase() ||
+            existingData.publicCategory?.toLowerCase() === inputCategoryName.toLowerCase()
+          );
+          if (isExistingLegacy) {
+            resolvedCategoryId = existingData.categoryId || undefined;
+            resolvedCategoryName = inputCategoryName;
+          } else {
+            return NextResponse.json(
+              { error: 'VALIDATION_ERROR', message: `Category "${inputCategoryName}" does not exist in product categories.` },
+              { status: 400 }
+            );
+          }
+        } else {
+          resolvedCategoryId = undefined;
+          resolvedCategoryName = inputCategoryName;
+        }
+      }
+    } else {
+      if (isNew) {
+        return NextResponse.json(
+          { error: 'VALIDATION_ERROR', message: 'Product category is required.' },
+          { status: 400 }
+        );
+      } else {
+        resolvedCategoryId = existingData.categoryId;
+        resolvedCategoryName = existingData.publicCategory || existingData.category || '3D Prints';
+      }
+    }
+
     const mergedData = {
       ...existingData,
       id,
@@ -252,8 +359,9 @@ export async function POST(req: NextRequest) {
       publicName: name,
       slug,
       sku: body.sku ? String(body.sku).trim() : existingData.sku || `PRN-${id.slice(-4).toUpperCase()}`,
-      category,
-      publicCategory: category,
+      categoryId: resolvedCategoryId,
+      category: resolvedCategoryName,
+      publicCategory: resolvedCategoryName,
       sellingPrice,
       directPrice: sellingPrice,
       description: existingData.description || publicDescription,
@@ -297,7 +405,8 @@ export async function POST(req: NextRequest) {
       details: {
         name,
         sellingPrice,
-        category,
+        categoryId: resolvedCategoryId,
+        category: resolvedCategoryName,
         published,
         isFeatured,
         isBestSeller,
@@ -311,7 +420,8 @@ export async function POST(req: NextRequest) {
         name,
         slug,
         sku: mergedData.sku,
-        category,
+        categoryId: resolvedCategoryId,
+        category: resolvedCategoryName,
         sellingPrice,
         imageUrl,
         images,

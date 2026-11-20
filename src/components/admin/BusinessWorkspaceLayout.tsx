@@ -19,6 +19,7 @@ import {
   ArrowRight01Icon,
   InstagramIcon,
   Image01Icon,
+  Tag01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeIcon } from "@/components/hugeIcons";
 import "@/app/business-workspace.css";
@@ -46,6 +47,7 @@ interface NavItem {
 const CORE_NAV_ITEMS: NavItem[] = [
   { path: "/admin", label: "Overview", icon: DashboardSquare01Icon },
   { path: "/admin/products", label: "Products", icon: PackageIcon },
+  { path: "/admin/categories", label: "Categories", icon: Tag01Icon },
   { path: "/admin/orders", label: "Orders", icon: Invoice01Icon },
 ];
 

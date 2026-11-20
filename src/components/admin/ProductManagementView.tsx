@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   PackageIcon,
   Search01Icon,
@@ -28,6 +28,7 @@ interface ProductItem {
   name: string;
   internalName?: string;
   sku: string;
+  categoryId?: string;
   category: string;
   sellingPrice: number;
   currency: string;
@@ -45,15 +46,13 @@ interface ProductItem {
   updatedAt: string;
 }
 
-const CATEGORIES = [
-  "Home Decor",
-  "Personalized Gifts",
-  "Keychains & Accessories",
-  "Desk Accessories",
-  "Phone Stands",
-  "Corporate Gifts",
-  "Custom Prints",
-];
+interface CategoryOption {
+  id: string;
+  name: string;
+  slug: string;
+  isPublished: boolean;
+  order: number;
+}
 
 const MAX_PRODUCT_IMAGES = 6;
 
@@ -395,8 +394,43 @@ export function ProductManagementView() {
   const [formPrice, setFormPrice] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formCategory, setFormCategory] = useState("Home Decor");
+  const [formCategoryId, setFormCategoryId] = useState("");
   const [formImages, setFormImages] = useState<string[]>([]);
   const [formPublished, setFormPublished] = useState(false);
+
+  // Dynamic Categories State
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+
+  async function fetchCategories() {
+    setLoadingCategories(true);
+    setCategoriesError(null);
+    try {
+      const res = await fetch("/api/admin/website/categories", {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.items)) {
+        setCategories(
+          data.items.map((c: any) => ({
+            id: String(c.id),
+            name: String(c.name),
+            slug: String(c.slug),
+            isPublished: Boolean(c.isPublished),
+            order: Number(c.order || 0),
+          }))
+        );
+      } else {
+        setCategoriesError(data.message || "Failed to load categories.");
+      }
+    } catch {
+      setCategoriesError("Network error loading categories.");
+    } finally {
+      setLoadingCategories(false);
+    }
+  }
 
   // Media Library Picker & Inline Upload State
   const [isMediaPickerOpen, setIsMediaPickerOpen] = useState(false);
@@ -421,6 +455,7 @@ export function ProductManagementView() {
 
   useEffect(() => {
     fetchProducts();
+    fetchCategories();
   }, []);
 
   // Commercial products are those configured for commercial sale
@@ -465,7 +500,29 @@ export function ProductManagementView() {
     const initialPrice = selectedForImport.sellingPrice || selectedForImport.directPrice || 49.0;
     setFormPrice(String(initialPrice.toFixed(2)));
     setFormDescription(selectedForImport.description || "");
-    setFormCategory(selectedForImport.category && CATEGORIES.includes(selectedForImport.category) ? selectedForImport.category : "Home Decor");
+
+    // Resolve category for imported product: categoryId first, then name
+    const matchedById = selectedForImport.categoryId
+      ? categories.find((c) => c.id === selectedForImport.categoryId)
+      : undefined;
+    const matchedByName = !matchedById && selectedForImport.category
+      ? categories.find((c) => c.name.toLowerCase() === selectedForImport.category.toLowerCase())
+      : undefined;
+    const matched = matchedById || matchedByName;
+
+    if (matched) {
+      setFormCategoryId(matched.id);
+      setFormCategory(matched.name);
+    } else {
+      const firstPublished = categories.find((c) => c.isPublished);
+      if (firstPublished) {
+        setFormCategoryId(firstPublished.id);
+        setFormCategory(firstPublished.name);
+      } else {
+        setFormCategoryId(selectedForImport.categoryId || "");
+        setFormCategory(selectedForImport.category || "Home Decor");
+      }
+    }
     
     // Clean initial images (exclude base64 strings if raw Bambu thumbnail)
     const initialImgs: string[] = [];
@@ -492,7 +549,23 @@ export function ProductManagementView() {
     setFormName(prod.name);
     setFormPrice(String(prod.sellingPrice || 0));
     setFormDescription(prod.description || "");
-    setFormCategory(prod.category || "Home Decor");
+
+    // Category resolution: categoryId first, then name
+    const matchedById = prod.categoryId
+      ? categories.find((c) => c.id === prod.categoryId)
+      : undefined;
+    const matchedByName = !matchedById && prod.category
+      ? categories.find((c) => c.name.toLowerCase() === prod.category.toLowerCase())
+      : undefined;
+    const matched = matchedById || matchedByName;
+
+    if (matched) {
+      setFormCategoryId(matched.id);
+      setFormCategory(matched.name);
+    } else {
+      setFormCategoryId(prod.categoryId || "");
+      setFormCategory(prod.category || "Home Decor");
+    }
 
     const initialImgs: string[] = [];
     if (Array.isArray(prod.images) && prod.images.length > 0) {
@@ -511,6 +584,53 @@ export function ProductManagementView() {
     setSuccessMessage(null);
     setIsEditModalOpen(true);
   }
+
+  // Re-resolve category if categories arrive after the modal was already opened
+  useEffect(() => {
+    if (isEditModalOpen && editingProduct && categories.length > 0 && !formCategoryId) {
+      const matchedById = editingProduct.categoryId
+        ? categories.find((c) => c.id === editingProduct.categoryId)
+        : undefined;
+      const matchedByName = !matchedById && editingProduct.category
+        ? categories.find((c) => c.name.toLowerCase() === editingProduct.category.toLowerCase())
+        : undefined;
+      const matched = matchedById || matchedByName;
+      if (matched) {
+        setFormCategoryId(matched.id);
+        setFormCategory(matched.name);
+      }
+    }
+  }, [categories, isEditModalOpen, editingProduct, formCategoryId]);
+
+  // Available category options for product assignment:
+  // - Only published categories for new assignments.
+  // - If editing a product whose current category is unpublished, include it so it can be seen and reassigned safely.
+  const availableCategoryOptions = useMemo(() => {
+    const published = categories.filter((c) => c.isPublished);
+
+    if (editingProduct) {
+      const currentUnpublished = categories.find(
+        (c) =>
+          !c.isPublished &&
+          (c.id === formCategoryId ||
+            (editingProduct.categoryId && c.id === editingProduct.categoryId) ||
+            (editingProduct.category && c.name.toLowerCase() === editingProduct.category.toLowerCase()))
+      );
+      if (currentUnpublished && !published.some((p) => p.id === currentUnpublished.id)) {
+        published.push(currentUnpublished);
+      }
+    }
+
+    published.sort((a, b) => a.order - b.order);
+    return published;
+  }, [categories, editingProduct, formCategoryId]);
+
+  const hasLegacyUnmatchedCategory = Boolean(
+    formCategory &&
+    !availableCategoryOptions.some(
+      (c) => c.id === formCategoryId || c.name.toLowerCase() === formCategory.toLowerCase()
+    )
+  );
 
   // --- Handlers: 1-Click Publish Toggle ---
   async function handleTogglePublish(prod: ProductItem) {
@@ -573,6 +693,12 @@ export function ProductManagementView() {
       return;
     }
 
+    if (!formCategory.trim() && !formCategoryId) {
+      setErrorMessage("Please select a storefront category.");
+      setSaving(false);
+      return;
+    }
+
     const cleanImages = formImages.slice(0, MAX_PRODUCT_IMAGES);
     const payload = {
       id: editingProduct.id,
@@ -580,6 +706,7 @@ export function ProductManagementView() {
       publicName: formName.trim(),
       sellingPrice: priceNum,
       publicDescription: formDescription.trim(),
+      categoryId: formCategoryId || undefined,
       category: formCategory,
       publicCategory: formCategory,
       imageUrl: cleanImages[0] || null,
@@ -1371,12 +1498,44 @@ export function ProductManagementView() {
 
               {/* 3. Category */}
               <div>
-                <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", display: "block", marginBottom: "6px" }}>
-                  Storefront Category
-                </label>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                  <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--bm-text-secondary)", margin: 0 }}>
+                    Storefront Category *
+                  </label>
+                  {categoriesError && (
+                    <button
+                      type="button"
+                      onClick={fetchCategories}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "var(--bm-accent)",
+                        fontSize: "11px",
+                        cursor: "pointer",
+                        padding: 0,
+                        textDecoration: "underline",
+                      }}
+                    >
+                      Retry loading categories
+                    </button>
+                  )}
+                </div>
                 <select
-                  value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value)}
+                  value={formCategoryId || (hasLegacyUnmatchedCategory ? `legacy:${formCategory}` : "")}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val.startsWith("legacy:")) {
+                      setFormCategoryId("");
+                      setFormCategory(val.replace(/^legacy:/, ""));
+                    } else {
+                      setFormCategoryId(val);
+                      const found = categories.find((c) => c.id === val);
+                      if (found) {
+                        setFormCategory(found.name);
+                      }
+                    }
+                  }}
+                  disabled={loadingCategories && categories.length === 0}
                   style={{
                     width: "100%",
                     padding: "10px 14px",
@@ -1387,12 +1546,35 @@ export function ProductManagementView() {
                     boxSizing: "border-box",
                   }}
                 >
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
+                  {loadingCategories && categories.length === 0 && (
+                    <option value="" disabled>
+                      Loading categories...
+                    </option>
+                  )}
+
+                  {!loadingCategories && availableCategoryOptions.length === 0 && !hasLegacyUnmatchedCategory && (
+                    <option value="" disabled>
+                      No categories available
+                    </option>
+                  )}
+
+                  {availableCategoryOptions.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {!c.isPublished ? "(Unpublished / Current)" : ""}
                     </option>
                   ))}
+
+                  {hasLegacyUnmatchedCategory && (
+                    <option value={`legacy:${formCategory}`}>
+                      {formCategory} (Legacy / Current)
+                    </option>
+                  )}
                 </select>
+                {hasLegacyUnmatchedCategory && (
+                  <span style={{ fontSize: "11px", color: "#D97706", marginTop: "4px", display: "block" }}>
+                    This product is assigned to a legacy category not in the active catalog. Select an active category to update.
+                  </span>
+                )}
               </div>
 
               {/* 4. Description */}

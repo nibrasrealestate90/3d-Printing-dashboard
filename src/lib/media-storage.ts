@@ -38,7 +38,7 @@ export function isPublicMediaStorageConfigured(): boolean {
 export const isPublicR2Configured = isPublicMediaStorageConfigured;
 
 export function generatePublicMediaStorageKey(
-  category: 'products' | 'instagram' | 'general',
+  category: 'products' | 'instagram' | 'categories' | 'general',
   fileName: string
 ): string {
   const sanitized = fileName

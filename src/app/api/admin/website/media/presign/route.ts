@@ -36,7 +36,11 @@ export async function POST(req: NextRequest) {
     const fileName = String(body.fileName || '').trim();
     const fileSizeBytes = Number(body.fileSizeBytes);
     const mimeType = String(body.mimeType || '').trim();
-    const category = body.category === 'instagram' ? 'instagram' : 'products';
+    const category = body.category === 'instagram'
+      ? 'instagram'
+      : body.category === 'categories'
+        ? 'categories'
+        : 'products';
 
     const validation = validateMediaFile(fileName, fileSizeBytes, mimeType);
     if (!validation.valid) {

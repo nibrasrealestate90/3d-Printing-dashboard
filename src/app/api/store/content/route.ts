@@ -23,17 +23,27 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const rows = await sql`
-      SELECT data
-      FROM public.ledger_collections
-      WHERE collection_name = 'website_content' AND record_id = 'instagram_gallery'
-      LIMIT 1;
-    `;
+    const [instagramRows, categoryRows] = await Promise.all([
+      sql`
+        SELECT data
+        FROM public.ledger_collections
+        WHERE collection_name = 'website_content' AND record_id = 'instagram_gallery'
+        LIMIT 1;
+      `,
+      sql`
+        SELECT data
+        FROM public.ledger_collections
+        WHERE collection_name = 'website_content' AND record_id = 'categories'
+        LIMIT 1;
+      `,
+    ]);
 
-    const rawItems: any[] = Array.isArray(rows[0]?.data?.items) ? rows[0].data.items : [];
+    const rawInstagramItems: any[] = Array.isArray(instagramRows[0]?.data?.items)
+      ? instagramRows[0].data.items
+      : [];
 
-    // Filter strictly for published items
-    const publishedItems = rawItems
+    // Filter strictly for published Instagram items
+    const publishedItems = rawInstagramItems
       .filter((item) => item && (item.published === true || item.published === 'true'))
       .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
       .map((item) => {
@@ -47,11 +57,29 @@ export async function GET(req: NextRequest) {
         };
       });
 
+    // Filter strictly for published categories (never expose unpublished or internal metadata)
+    const rawCategories: any[] = Array.isArray(categoryRows[0]?.data?.items)
+      ? categoryRows[0].data.items
+      : [];
+
+    const publishedCategories = rawCategories
+      .filter((cat) => cat && (cat.isPublished === true || cat.isPublished === 'true'))
+      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
+      .map((cat) => ({
+        id: String(cat.id || ''),
+        name: String(cat.name || '').trim(),
+        slug: String(cat.slug || '').trim(),
+        description: typeof cat.description === 'string' && cat.description.trim() ? cat.description.trim() : undefined,
+        imageUrl: sanitizeImageUrl(cat.imageUrl) || '',
+        order: Number(cat.order) || 0,
+      }));
+
     return NextResponse.json(
       {
         success: true,
         count: publishedItems.length,
         instagramGallery: publishedItems,
+        categories: publishedCategories,
       },
       {
         status: 200,

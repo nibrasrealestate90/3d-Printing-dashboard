@@ -80,6 +80,15 @@ export async function GET(req: NextRequest) {
     const instaItems: any[] = Array.isArray(instaRows[0]?.data?.items) ? instaRows[0].data.items : [];
     const publishedInsta = instaItems.filter((i) => i.published === true);
 
+    // Query categories (any category, including unpublished)
+    const catRows = await sql`
+      SELECT data
+      FROM public.ledger_collections
+      WHERE collection_name = 'website_content' AND record_id = 'categories'
+      LIMIT 1;
+    `;
+    const catItems: any[] = Array.isArray(catRows[0]?.data?.items) ? catRows[0].data.items : [];
+
     const itemsWithUsage = mediaItems.map((item) => {
       const referencedIn: string[] = [];
 
@@ -96,6 +105,12 @@ export async function GET(req: NextRequest) {
       for (const ig of publishedInsta) {
         if (ig.imageUrl === item.url) {
           referencedIn.push(`Instagram: ${ig.caption?.slice(0, 30) || ig.id}`);
+        }
+      }
+
+      for (const cat of catItems) {
+        if (cat.imageUrl === item.url) {
+          referencedIn.push(`Category: ${cat.name || cat.id}`);
         }
       }
 
