@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { Agentation } from "agentation";
+import { WorkspaceTransitionProvider } from "@/components/workspace";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -61,7 +62,9 @@ export default function RootLayout({
         />
       </head>
       <body>
-        {children}
+        <WorkspaceTransitionProvider>
+          {children}
+        </WorkspaceTransitionProvider>
         {process.env.NODE_ENV === "development" && process.env.NEXT_PUBLIC_ENABLE_AGENTATION === "true" && <Agentation />}
       </body>
     </html>

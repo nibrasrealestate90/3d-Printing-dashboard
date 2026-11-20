@@ -15,8 +15,11 @@ import {
   DashboardSquare01Icon,
   ArrowRight01Icon,
 } from "@hugeicons/core-free-icons";
+import { useWorkspaceTransition } from "@/components/workspace";
 
 export default function PrintStudioLedger() {
+  const { isSwitching, switchToWorkspace } = useWorkspaceTransition();
+
   useEffect(() => {
     const cleanup = initLedger();
     return () => {
@@ -47,10 +50,17 @@ export default function PrintStudioLedger() {
 
           {/* Sidebar Footer */}
           <div className="sidebar-footer">
-            <Link
+            <a
               href="/admin"
-              className="btn-switch-workspace"
+              className={`btn-switch-workspace ${isSwitching ? "disabled" : ""}`}
               id="switchWorkspaceBtn"
+              onClick={(e) => {
+                e.preventDefault();
+                if (!isSwitching) {
+                  switchToWorkspace("business", "/admin");
+                }
+              }}
+              aria-disabled={isSwitching}
               title="Switch to Business Management Workspace"
             >
               <div className="btn-switch-workspace-left">
@@ -60,7 +70,7 @@ export default function PrintStudioLedger() {
                 <span>Switch to Business</span>
               </div>
               <HugeIcon icon={ArrowRight01Icon} size={13} strokeWidth={2} className="btn-switch-workspace-arrow" />
-            </Link>
+            </a>
             <button className="btn-sidebar-collapse" id="collapseSidebarBtn" title="Toggle Sidebar">
               <HugeIcon icon={ArrowLeft01Icon} size={16} strokeWidth={2} />
               <span>Collapse Sidebar</span>

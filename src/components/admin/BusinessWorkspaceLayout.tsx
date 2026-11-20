@@ -22,6 +22,7 @@ import {
   Tag01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeIcon } from "@/components/hugeIcons";
+import { useWorkspaceTransition } from "@/components/workspace";
 import "@/app/business-workspace.css";
 
 export interface BusinessWorkspaceLayoutProps {
@@ -74,6 +75,7 @@ export function BusinessWorkspaceLayout({
   children,
 }: BusinessWorkspaceLayoutProps) {
   const router = useRouter();
+  const { isSwitching, switchToWorkspace } = useWorkspaceTransition();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -167,9 +169,16 @@ export function BusinessWorkspaceLayout({
 
           {/* Workspace Switcher Button at Bottom of Sidebar */}
           <div className="bm-sidebar-bottom">
-            <Link
+            <a
               href="/admin/production"
-              className="bm-workspace-switch-btn"
+              className={`bm-workspace-switch-btn ${isSwitching ? "disabled" : ""}`}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!isSwitching) {
+                  switchToWorkspace("production", "/admin/production");
+                }
+              }}
+              aria-disabled={isSwitching}
               title="Switch to Bambu 3D Manufacturing Workspace"
             >
               <div className="bm-workspace-switch-left">
@@ -179,7 +188,7 @@ export function BusinessWorkspaceLayout({
                 <span>Switch to Bambu Production</span>
               </div>
               <HugeIcon icon={ArrowRight01Icon} size={14} strokeWidth={2} />
-            </Link>
+            </a>
           </div>
         </aside>
 
@@ -230,10 +239,17 @@ export function BusinessWorkspaceLayout({
               </nav>
 
               <div className="bm-sidebar-bottom" style={{ marginTop: "16px" }}>
-                <Link
+                <a
                   href="/admin/production"
-                  className="bm-workspace-switch-btn"
-                  onClick={() => setMobileMenuOpen(false)}
+                  className={`bm-workspace-switch-btn ${isSwitching ? "disabled" : ""}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setMobileMenuOpen(false);
+                    if (!isSwitching) {
+                      switchToWorkspace("production", "/admin/production");
+                    }
+                  }}
+                  aria-disabled={isSwitching}
                   title="Switch to Bambu 3D Manufacturing Workspace"
                 >
                   <div className="bm-workspace-switch-left">
@@ -243,7 +259,7 @@ export function BusinessWorkspaceLayout({
                     <span>Switch to Bambu Production</span>
                   </div>
                   <HugeIcon icon={ArrowRight01Icon} size={14} strokeWidth={2} />
-                </Link>
+                </a>
 
                 <button
                   type="button"

@@ -1,0 +1,411 @@
+/* ==========================================================================
+   Workspace Transition Overlay (DESIGN.md Premium SaaS Motion)
+   Full-screen, centered workspace transformation animation between
+   Bambu Manufacturing and Commercial Business Dashboards.
+   ========================================================================== */
+
+/* Main Full-Screen Overlay Container */
+.wt-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+/* Backdrop: Dim and Blur Background (250ms timing) */
+.wt-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(233, 246, 246, 0.75);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  transition: opacity 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html.dark .wt-backdrop,
+.dark .wt-backdrop {
+  background: rgba(4, 20, 22, 0.82);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+
+/* Center Box: Holds Emblem, Rings, Typography and Progress (400ms entrance) */
+.wt-center-box {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 36px;
+  border-radius: 24px;
+  max-width: 380px;
+  width: 90%;
+  pointer-events: none;
+}
+
+/* Entrance & Exit Animations */
+.wt-overlay-enter .wt-backdrop {
+  animation: wtBackdropFadeIn 250ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.wt-overlay-enter .wt-center-box {
+  animation: wtBoxEnter 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.wt-overlay-exit {
+  animation: wtOverlayExit 300ms cubic-bezier(0.23, 1, 0.32, 1) forwards;
+}
+
+@keyframes wtBackdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes wtBoxEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.94) translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes wtOverlayExit {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+}
+
+/* Visual Stage: Rings, Particles, and Emblem */
+.wt-visual-stage {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Ambient Radial Glow */
+.wt-ambient-glow {
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(79, 176, 171, 0.28) 0%, rgba(6, 44, 47, 0.15) 45%, transparent 70%);
+  animation: wtGlowBreathe 2.4s ease-in-out infinite alternate;
+  pointer-events: none;
+  filter: blur(10px);
+}
+
+.wt-overlay[data-target="business"] .wt-ambient-glow {
+  background: radial-gradient(circle, rgba(240, 100, 61, 0.28) 0%, rgba(255, 145, 77, 0.14) 45%, transparent 70%);
+}
+
+@keyframes wtGlowBreathe {
+  0% {
+    transform: scale(0.94);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+/* Expanding Energy Pulse Ring */
+.wt-ring-pulse {
+  position: absolute;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(79, 176, 171, 0.45);
+  animation: wtPulseRing 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  pointer-events: none;
+}
+
+.wt-overlay[data-target="business"] .wt-ring-pulse {
+  border-color: rgba(240, 100, 61, 0.45);
+}
+
+@keyframes wtPulseRing {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+/* Outer Orbital Ring */
+.wt-ring-outer {
+  position: absolute;
+  width: 136px;
+  height: 136px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(79, 176, 171, 0.22);
+  border-top-color: rgba(79, 176, 171, 0.85);
+  animation: wtRotateCW 6s linear infinite;
+}
+
+.wt-overlay[data-target="business"] .wt-ring-outer {
+  border-color: rgba(240, 100, 61, 0.22);
+  border-top-color: rgba(240, 100, 61, 0.9);
+}
+
+/* Outer Orbit Particle */
+.wt-particle-outer {
+  position: absolute;
+  top: -3px;
+  left: calc(50% - 3px);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4FB0AB;
+  box-shadow: 0 0 10px #4FB0AB, 0 0 16px rgba(79, 176, 171, 0.6);
+}
+
+.wt-overlay[data-target="business"] .wt-particle-outer {
+  background: #F0643D;
+  box-shadow: 0 0 10px #F0643D, 0 0 16px rgba(240, 100, 61, 0.6);
+}
+
+/* Inner Orbital Ring */
+.wt-ring-inner {
+  position: absolute;
+  width: 102px;
+  height: 102px;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(255, 255, 255, 0.2);
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.7);
+  animation: wtRotateCCW 4.2s linear infinite;
+}
+
+html.dark .wt-ring-inner,
+.dark .wt-ring-inner {
+  border-color: rgba(156, 212, 210, 0.2);
+  border-bottom-color: rgba(156, 212, 210, 0.8);
+}
+
+/* Inner Orbit Particle */
+.wt-particle-inner {
+  position: absolute;
+  bottom: -3px;
+  left: calc(50% - 3px);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #FFFFFF;
+  box-shadow: 0 0 8px #FFFFFF, 0 0 14px rgba(255, 255, 255, 0.5);
+}
+
+@keyframes wtRotateCW {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes wtRotateCCW {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+/* Center Emblem Badge */
+.wt-emblem-badge {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1.5px solid rgba(6, 44, 47, 0.12);
+  box-shadow: 0 8px 24px rgba(6, 44, 47, 0.12), 0 2px 6px rgba(6, 44, 47, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 300ms ease;
+  animation: wtEmblemPulse 2.4s ease-in-out infinite alternate;
+}
+
+html.dark .wt-emblem-badge,
+.dark .wt-emblem-badge {
+  background: rgba(14, 41, 45, 0.92);
+  border-color: rgba(79, 176, 171, 0.28);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 2px rgba(255, 255, 255, 0.15);
+}
+
+.wt-emblem-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.wt-emblem-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.12));
+}
+
+@keyframes wtEmblemPulse {
+  0% {
+    transform: scale(0.98);
+  }
+  100% {
+    transform: scale(1.02);
+  }
+}
+
+/* Typography */
+.wt-text-container {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.wt-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #062C2F;
+  margin: 0;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
+}
+
+html.dark .wt-title,
+.dark .wt-title {
+  color: #E9F6F6;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.wt-subtitle {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #506867;
+  margin: 0;
+}
+
+html.dark .wt-subtitle,
+.dark .wt-subtitle {
+  color: #9CD4D2;
+}
+
+/* Luminous Activity Shimmer Track */
+.wt-shimmer-track {
+  margin-top: 18px;
+  width: 120px;
+  height: 2.5px;
+  border-radius: 999px;
+  background: rgba(6, 44, 47, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+html.dark .wt-shimmer-track,
+.dark .wt-shimmer-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.wt-shimmer-glow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 45px;
+  background: linear-gradient(90deg, transparent 0%, #4FB0AB 50%, transparent 100%);
+  animation: wtShimmerSlide 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.wt-overlay[data-target="business"] .wt-shimmer-glow {
+  background: linear-gradient(90deg, transparent 0%, #F0643D 50%, transparent 100%);
+}
+
+@keyframes wtShimmerSlide {
+  0% {
+    left: -45px;
+  }
+  100% {
+    left: 120px;
+  }
+}
+
+/* Workspace Content Reveal Animation (450ms) */
+.workspace-page-wrapper {
+  min-height: 100vh;
+}
+
+.workspace-content-reveal {
+  animation: wtContentReveal 450ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes wtContentReveal {
+  0% {
+    opacity: 0.88;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Disabled Switcher Button State */
+.btn-switch-workspace.disabled,
+.btn-switch-workspace:disabled,
+.bm-workspace-switch-btn.disabled,
+.bm-workspace-switch-btn:disabled {
+  opacity: 0.65 !important;
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+}
+
+/* Prefers Reduced Motion Accessibility Override */
+@media (prefers-reduced-motion: reduce) {
+  .wt-ring-outer,
+  .wt-ring-inner,
+  .wt-ambient-glow,
+  .wt-ring-pulse,
+  .wt-emblem-badge,
+  .wt-shimmer-glow {
+    animation: none !important;
+  }
+
+  .wt-overlay-enter .wt-center-box {
+    animation: wtBackdropFadeIn 250ms ease forwards !important;
+    transform: none !important;
+  }
+
+  .workspace-content-reveal {
+    animation: none !important;
+    transform: none !important;
+  }
+}

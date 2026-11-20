@@ -1,2 +1,3 @@
 @import "tailwindcss";
 @import "./ledger.css";
+@import "./workspace-transition.css";
