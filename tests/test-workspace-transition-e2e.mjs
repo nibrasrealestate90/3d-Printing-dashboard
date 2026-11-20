@@ -37,17 +37,15 @@ async function runWorkspaceTransitionE2ETest() {
   const targetAttr = await overlay.getAttribute("data-target");
   const titleText = await page.locator(".wt-title").innerText();
   const subtitleText = await page.locator(".wt-subtitle").innerText();
-  const isRingOuterVisible = await page.locator(".wt-ring-outer").isVisible();
-  const isRingInnerVisible = await page.locator(".wt-ring-inner").isVisible();
-  const isEmblemVisible = await page.locator(".wt-emblem-badge").isVisible();
+  const isVectorSpinnerVisible = await page.locator(".wt-vector-spinner").isVisible();
+  const isEmblemVisible = await page.locator(".wt-logo-core").isVisible();
 
   console.log("Active Transition Inspection:", {
     isOverlayVisible,
     targetAttr,
     titleText,
     subtitleText,
-    isRingOuterVisible,
-    isRingInnerVisible,
+    isVectorSpinnerVisible,
     isEmblemVisible,
   });
 

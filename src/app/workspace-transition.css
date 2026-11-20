@@ -1,7 +1,6 @@
 /* ==========================================================================
-   Workspace Transition Overlay (DESIGN.md Premium SaaS Motion)
-   Full-screen, centered workspace transformation animation between
-   Bambu Manufacturing and Commercial Business Dashboards.
+   Workspace Transition Overlay (Clean Vector Style)
+   Clean, modern vector animated logo loader between workspaces.
    ========================================================================== */
 
 /* Main Full-Screen Overlay Container */
@@ -17,11 +16,11 @@
   overflow: hidden;
 }
 
-/* Backdrop: Dim and Blur Background (250ms timing) */
+/* Backdrop: Dim and Blur Background (250ms) */
 .wt-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(233, 246, 246, 0.75);
+  background: rgba(233, 246, 246, 0.78);
   backdrop-filter: blur(12px) saturate(130%);
   -webkit-backdrop-filter: blur(12px) saturate(130%);
   transition: opacity 250ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -29,12 +28,12 @@
 
 html.dark .wt-backdrop,
 .dark .wt-backdrop {
-  background: rgba(4, 20, 22, 0.82);
+  background: rgba(4, 20, 22, 0.85);
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
 }
 
-/* Center Box: Holds Emblem, Rings, Typography and Progress (400ms entrance) */
+/* Center Box: Clean, compact card */
 .wt-center-box {
   position: relative;
   z-index: 2;
@@ -43,9 +42,9 @@ html.dark .wt-backdrop,
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 32px 36px;
-  border-radius: 24px;
-  max-width: 380px;
+  padding: 28px 32px;
+  border-radius: 20px;
+  max-width: 360px;
   width: 90%;
   pointer-events: none;
 }
@@ -56,7 +55,7 @@ html.dark .wt-backdrop,
 }
 
 .wt-overlay-enter .wt-center-box {
-  animation: wtBoxEnter 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: wtBoxEnter 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .wt-overlay-exit {
@@ -75,7 +74,7 @@ html.dark .wt-backdrop,
 @keyframes wtBoxEnter {
   0% {
     opacity: 0;
-    transform: scale(0.94) translateY(8px);
+    transform: scale(0.96) translateY(6px);
   }
   100% {
     opacity: 1;
@@ -94,199 +93,95 @@ html.dark .wt-backdrop,
   }
 }
 
-/* Visual Stage: Rings, Particles, and Emblem */
-.wt-visual-stage {
+/* ==========================================================================
+   Simple Vector Style Loading Animated Logo
+   ========================================================================== */
+.wt-vector-loader-wrap {
   position: relative;
-  width: 150px;
-  height: 150px;
+  width: 80px;
+  height: 80px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Ambient Radial Glow */
-.wt-ambient-glow {
+/* Circular Vector SVG Spinner */
+.wt-vector-spinner {
   position: absolute;
-  width: 180px;
-  height: 180px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(79, 176, 171, 0.28) 0%, rgba(6, 44, 47, 0.15) 45%, transparent 70%);
-  animation: wtGlowBreathe 2.4s ease-in-out infinite alternate;
-  pointer-events: none;
-  filter: blur(10px);
+  inset: 0;
+  width: 80px;
+  height: 80px;
+  animation: wtVectorSpin 1s cubic-bezier(0.4, 0.1, 0.2, 0.95) infinite;
+  transform-origin: center;
 }
 
-.wt-overlay[data-target="business"] .wt-ambient-glow {
-  background: radial-gradient(circle, rgba(240, 100, 61, 0.28) 0%, rgba(255, 145, 77, 0.14) 45%, transparent 70%);
-}
-
-@keyframes wtGlowBreathe {
+@keyframes wtVectorSpin {
   0% {
-    transform: scale(0.94);
-    opacity: 0.7;
-  }
-  100% {
-    transform: scale(1.08);
-    opacity: 1;
-  }
-}
-
-/* Expanding Energy Pulse Ring */
-.wt-ring-pulse {
-  position: absolute;
-  width: 76px;
-  height: 76px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(79, 176, 171, 0.45);
-  animation: wtPulseRing 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
-  pointer-events: none;
-}
-
-.wt-overlay[data-target="business"] .wt-ring-pulse {
-  border-color: rgba(240, 100, 61, 0.45);
-}
-
-@keyframes wtPulseRing {
-  0% {
-    transform: scale(0.9);
-    opacity: 0.8;
-  }
-  100% {
-    transform: scale(1.9);
-    opacity: 0;
-  }
-}
-
-/* Outer Orbital Ring */
-.wt-ring-outer {
-  position: absolute;
-  width: 136px;
-  height: 136px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(79, 176, 171, 0.22);
-  border-top-color: rgba(79, 176, 171, 0.85);
-  animation: wtRotateCW 6s linear infinite;
-}
-
-.wt-overlay[data-target="business"] .wt-ring-outer {
-  border-color: rgba(240, 100, 61, 0.22);
-  border-top-color: rgba(240, 100, 61, 0.9);
-}
-
-/* Outer Orbit Particle */
-.wt-particle-outer {
-  position: absolute;
-  top: -3px;
-  left: calc(50% - 3px);
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #4FB0AB;
-  box-shadow: 0 0 10px #4FB0AB, 0 0 16px rgba(79, 176, 171, 0.6);
-}
-
-.wt-overlay[data-target="business"] .wt-particle-outer {
-  background: #F0643D;
-  box-shadow: 0 0 10px #F0643D, 0 0 16px rgba(240, 100, 61, 0.6);
-}
-
-/* Inner Orbital Ring */
-.wt-ring-inner {
-  position: absolute;
-  width: 102px;
-  height: 102px;
-  border-radius: 50%;
-  border: 1.5px dashed rgba(255, 255, 255, 0.2);
-  border-bottom: 1.5px solid rgba(255, 255, 255, 0.7);
-  animation: wtRotateCCW 4.2s linear infinite;
-}
-
-html.dark .wt-ring-inner,
-.dark .wt-ring-inner {
-  border-color: rgba(156, 212, 210, 0.2);
-  border-bottom-color: rgba(156, 212, 210, 0.8);
-}
-
-/* Inner Orbit Particle */
-.wt-particle-inner {
-  position: absolute;
-  bottom: -3px;
-  left: calc(50% - 3px);
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #FFFFFF;
-  box-shadow: 0 0 8px #FFFFFF, 0 0 14px rgba(255, 255, 255, 0.5);
-}
-
-@keyframes wtRotateCW {
-  from {
     transform: rotate(0deg);
   }
-  to {
+  100% {
     transform: rotate(360deg);
   }
 }
 
-@keyframes wtRotateCCW {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(-360deg);
-  }
+/* Track Ring */
+.wt-spinner-track {
+  stroke: rgba(6, 44, 47, 0.12);
 }
 
-/* Center Emblem Badge */
-.wt-emblem-badge {
-  position: relative;
-  width: 64px;
-  height: 64px;
+html.dark .wt-spinner-track,
+.dark .wt-spinner-track {
+  stroke: rgba(255, 255, 255, 0.12);
+}
+
+/* Animated Spinner Arc */
+.wt-spinner-arc {
+  stroke-dasharray: 60 160;
+  stroke: #4FB0AB; /* Default production teal */
+  transition: stroke 300ms ease;
+}
+
+/* Contextual Accents */
+.wt-overlay[data-target="business"] .wt-spinner-arc {
+  stroke: #F0643D; /* Business warm terracotta */
+}
+
+.wt-overlay[data-target="production"] .wt-spinner-arc {
+  stroke: #00A389; /* Manufacturing emerald mint */
+}
+
+/* Central Logo Badge Core */
+.wt-logo-core {
+  position: absolute;
+  width: 56px;
+  height: 56px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1.5px solid rgba(6, 44, 47, 0.12);
-  box-shadow: 0 8px 24px rgba(6, 44, 47, 0.12), 0 2px 6px rgba(6, 44, 47, 0.06);
+  background: #FFFFFF;
+  border: 1px solid rgba(6, 44, 47, 0.1);
+  box-shadow: 0 2px 10px rgba(6, 44, 47, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 300ms ease;
-  animation: wtEmblemPulse 2.4s ease-in-out infinite alternate;
+  transition: all 300ms ease;
 }
 
-html.dark .wt-emblem-badge,
-.dark .wt-emblem-badge {
-  background: rgba(14, 41, 45, 0.92);
-  border-color: rgba(79, 176, 171, 0.28);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 2px rgba(255, 255, 255, 0.15);
+html.dark .wt-logo-core,
+.dark .wt-logo-core {
+  background: #0E292D;
+  border-color: rgba(79, 176, 171, 0.25);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
-.wt-emblem-inner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-}
-
-.wt-emblem-logo {
-  width: 40px;
-  height: 40px;
+.wt-logo-img {
+  width: 38px;
+  height: 38px;
   object-fit: contain;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.12));
-}
-
-@keyframes wtEmblemPulse {
-  0% {
-    transform: scale(0.98);
-  }
-  100% {
-    transform: scale(1.02);
-  }
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.1));
 }
 
 /* Typography */
 .wt-text-container {
-  margin-top: 22px;
+  margin-top: 18px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -299,13 +194,12 @@ html.dark .wt-emblem-badge,
   letter-spacing: -0.01em;
   color: #062C2F;
   margin: 0;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
 }
 
 html.dark .wt-title,
 .dark .wt-title {
   color: #E9F6F6;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
 .wt-subtitle {
@@ -318,44 +212,6 @@ html.dark .wt-title,
 html.dark .wt-subtitle,
 .dark .wt-subtitle {
   color: #9CD4D2;
-}
-
-/* Luminous Activity Shimmer Track */
-.wt-shimmer-track {
-  margin-top: 18px;
-  width: 120px;
-  height: 2.5px;
-  border-radius: 999px;
-  background: rgba(6, 44, 47, 0.08);
-  position: relative;
-  overflow: hidden;
-}
-
-html.dark .wt-shimmer-track,
-.dark .wt-shimmer-track {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.wt-shimmer-glow {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 45px;
-  background: linear-gradient(90deg, transparent 0%, #4FB0AB 50%, transparent 100%);
-  animation: wtShimmerSlide 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
-
-.wt-overlay[data-target="business"] .wt-shimmer-glow {
-  background: linear-gradient(90deg, transparent 0%, #F0643D 50%, transparent 100%);
-}
-
-@keyframes wtShimmerSlide {
-  0% {
-    left: -45px;
-  }
-  100% {
-    left: 120px;
-  }
 }
 
 /* Workspace Content Reveal Animation (450ms) */
@@ -390,17 +246,12 @@ html.dark .wt-shimmer-track,
 
 /* Prefers Reduced Motion Accessibility Override */
 @media (prefers-reduced-motion: reduce) {
-  .wt-ring-outer,
-  .wt-ring-inner,
-  .wt-ambient-glow,
-  .wt-ring-pulse,
-  .wt-emblem-badge,
-  .wt-shimmer-glow {
+  .wt-vector-spinner {
     animation: none !important;
   }
 
   .wt-overlay-enter .wt-center-box {
-    animation: wtBackdropFadeIn 250ms ease forwards !important;
+    animation: wtBackdropFadeIn 200ms ease forwards !important;
     transform: none !important;
   }
 
