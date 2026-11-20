@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { initLedger } from "./ledgerCore";
 import {
   HugeIcon,
@@ -10,6 +11,10 @@ import {
   Moon02Icon,
   Sun03Icon,
 } from "./hugeIcons";
+import {
+  DashboardSquare01Icon,
+  ArrowRight01Icon,
+} from "@hugeicons/core-free-icons";
 
 export default function PrintStudioLedger() {
   useEffect(() => {
@@ -42,6 +47,20 @@ export default function PrintStudioLedger() {
 
           {/* Sidebar Footer */}
           <div className="sidebar-footer">
+            <Link
+              href="/admin"
+              className="btn-switch-workspace"
+              id="switchWorkspaceBtn"
+              title="Switch to Business Management Workspace"
+            >
+              <div className="btn-switch-workspace-left">
+                <div className="btn-switch-workspace-icon">
+                  <HugeIcon icon={DashboardSquare01Icon} size={15} strokeWidth={2} />
+                </div>
+                <span>Switch to Business</span>
+              </div>
+              <HugeIcon icon={ArrowRight01Icon} size={13} strokeWidth={2} className="btn-switch-workspace-arrow" />
+            </Link>
             <button className="btn-sidebar-collapse" id="collapseSidebarBtn" title="Toggle Sidebar">
               <HugeIcon icon={ArrowLeft01Icon} size={16} strokeWidth={2} />
               <span>Collapse Sidebar</span>

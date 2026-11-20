@@ -318,10 +318,12 @@ html.dark .sidebar-logo-img,
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 16px;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 2px;
+  padding-bottom: 6px;
   scrollbar-width: thin;
   scrollbar-color: rgba(59, 84, 83, 0.25) transparent;
 }
@@ -346,30 +348,30 @@ html.dark .sidebar-logo-img,
 .nav-group {
   display: flex;
   flex-direction: column;
-  gap: 1.5px;
+  gap: 6px;
 }
 
 .nav-group-label {
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
   color: #3B5453;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  padding: 4px 10px 1px 10px;
+  padding: 6px 12px 2px 12px;
   user-select: none;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 9px;
-  min-height: 35px;
-  padding: 2px 8px;
+  gap: 10px;
+  min-height: 40px;
+  padding: 6px 12px;
   border-radius: var(--radius-pill);
   color: var(--color-text-primary);
   background: transparent;
   border: none;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
@@ -455,6 +457,80 @@ html.dark .sidebar-logo-img,
   border-top: 1px solid var(--color-border);
 }
 
+.btn-switch-workspace {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  margin-bottom: 2px;
+}
+
+.btn-switch-workspace:hover {
+  background: var(--color-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(6, 44, 47, 0.08);
+}
+
+.btn-switch-workspace:active {
+  transform: scale(0.98);
+}
+
+.btn-switch-workspace-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.btn-switch-workspace-left span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.btn-switch-workspace-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-surface-secondary);
+  color: var(--color-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
+}
+
+.btn-switch-workspace:hover .btn-switch-workspace-icon {
+  transform: scale(1.08);
+}
+
+.btn-switch-workspace-arrow {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  transition: transform var(--transition-fast), color var(--transition-fast);
+}
+
+.btn-switch-workspace:hover .btn-switch-workspace-arrow {
+  color: var(--color-accent);
+  transform: translateX(2px);
+}
+
 .btn-sidebar-collapse {
   display: flex;
   align-items: center;
@@ -484,6 +560,27 @@ html.dark .sidebar-logo-img,
 .app-shell.sidebar-collapsed .nav-badge,
 .app-shell.sidebar-collapsed .sidebar-footer span {
   display: none !important;
+}
+
+.app-shell.sidebar-collapsed .btn-switch-workspace-arrow,
+.app-sidebar.collapsed .btn-switch-workspace-arrow,
+.sidebar.collapsed .btn-switch-workspace-arrow {
+  display: none !important;
+}
+
+.app-shell.sidebar-collapsed .btn-switch-workspace,
+.app-sidebar.collapsed .btn-switch-workspace,
+.sidebar.collapsed .btn-switch-workspace {
+  justify-content: center !important;
+  padding: 8px !important;
+  width: 100% !important;
+}
+
+.app-shell.sidebar-collapsed .btn-switch-workspace-left,
+.app-sidebar.collapsed .btn-switch-workspace-left,
+.sidebar.collapsed .btn-switch-workspace-left {
+  gap: 0 !important;
+  justify-content: center !important;
 }
 
 .app-shell.sidebar-collapsed .nav-item {
@@ -4035,6 +4132,24 @@ html.dark .smart-toast-progress-track,
   padding: 8px !important;
 }
 
+.app-sidebar.collapsed .btn-switch-workspace-arrow,
+.sidebar.collapsed .btn-switch-workspace-arrow {
+  display: none !important;
+}
+
+.app-sidebar.collapsed .btn-switch-workspace,
+.sidebar.collapsed .btn-switch-workspace {
+  justify-content: center !important;
+  padding: 8px !important;
+  width: 100% !important;
+}
+
+.app-sidebar.collapsed .btn-switch-workspace-left,
+.sidebar.collapsed .btn-switch-workspace-left {
+  gap: 0 !important;
+  justify-content: center !important;
+}
+
 /* ==========================================================================
    Comprehensive Dark Mode Component Styling
    ========================================================================== */
@@ -4818,6 +4933,41 @@ html.dark .nav-badge.danger,
 html.dark .sidebar-footer,
 .dark .sidebar-footer {
   border-top-color: var(--color-border);
+}
+
+html.dark .btn-switch-workspace,
+.dark .btn-switch-workspace {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+}
+
+html.dark .btn-switch-workspace:hover,
+.dark .btn-switch-workspace:hover {
+  background: var(--color-surface-secondary);
+  border-color: var(--color-focus);
+  color: #FFFFFF;
+}
+
+html.dark .btn-switch-workspace-icon,
+.dark .btn-switch-workspace-icon {
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+}
+
+html.dark .btn-switch-workspace:hover .btn-switch-workspace-icon,
+.dark .btn-switch-workspace:hover .btn-switch-workspace-icon {
+  color: #FFFFFF;
+}
+
+html.dark .btn-switch-workspace-arrow,
+.dark .btn-switch-workspace-arrow {
+  color: var(--color-text-muted);
+}
+
+html.dark .btn-switch-workspace:hover .btn-switch-workspace-arrow,
+.dark .btn-switch-workspace:hover .btn-switch-workspace-arrow {
+  color: #FFFFFF;
 }
 
 html.dark .btn-sidebar-collapse,
