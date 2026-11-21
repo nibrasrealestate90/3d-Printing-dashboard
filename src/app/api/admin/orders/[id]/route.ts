@@ -238,3 +238,6 @@ export async function PATCH(
     );
   }
 }
+
+export const PUT = PATCH;
+

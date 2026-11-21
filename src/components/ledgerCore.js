@@ -1291,13 +1291,14 @@ function render() {
     reminders: vReminders,
     "automation-history": vAutomationHistory,
     settings: vSettings,
-    customers: () => vRedirectModule("customers", "Customers", "/admin/customers"),
-    orders: () => vRedirectModule("orders", "Orders", "/admin/orders"),
-    kyc: () => vRedirectModule("kyc", "Customer KYC", "/admin/customers"),
-    quotes: () => vRedirectModule("quotes", "Quotations", "/admin/quotations"),
-    invoices: () => vRedirectModule("invoices", "Invoices & Payments", "/admin/reports"),
-    reports: () => vRedirectModule("reports", "Financial Reports", "/admin/reports"),
-    accounts: () => vRedirectModule("accounts", "Accounts & Team", "/admin/settings")
+    customers: vCustomers,
+    orders: vOrders,
+    kyc: vCustomers,
+    quotes: vEnquiries,
+    enquiries: vEnquiries,
+    invoices: vReports,
+    reports: vReports,
+    accounts: vSettings
   }[tab] || vDash;
 
   const focusId = document.activeElement && document.activeElement.id;
@@ -1307,6 +1308,7 @@ function render() {
   if (tab === "calc") bindCalc();
   if (tab === "expenses") bindExpenses();
   else unmountExpenses();
+  if (tab === "orders") bindOrders();
 
   if (focusId && document.getElementById(focusId) && /^(q|c)_/.test(focusId)) {
     const el = document.getElementById(focusId);
@@ -4461,26 +4463,266 @@ function vCustomers() {
 /* ==========================================================================
    Orders View (Customers & Sales)
    ========================================================================== */
+/* ==========================================================================
+   Orders View (Production Orders & Commercial Fulfillment)
+   ========================================================================== */
+let orderFilter = "ALL";
+let orderSearch = "";
+
+function getOrderFulfillmentStatus(inv) {
+  if (inv.fulfillmentStatus) return inv.fulfillmentStatus;
+  if (inv.delivered) return "DELIVERED";
+  if (inv.status === "ready") return "READY";
+  return "IN_PRODUCTION";
+}
+
+async function updateOrderFulfillment(orderId, newStatus) {
+  const allInvoices = S.invoices || [];
+  const inv = allInvoices.find(i => i.id === orderId || i.no === orderId || String(i.id) === String(orderId));
+  if (inv) {
+    inv.fulfillmentStatus = newStatus;
+    if (newStatus === "DELIVERED") inv.delivered = true;
+    store.persist("invoices");
+  }
+  notify({
+    type: "good",
+    title: "Order Updated",
+    message: `Order fulfillment status set to ${newStatus.replace('_', ' ')}.`
+  });
+  render();
+
+  try {
+    const res = await fetch(`/api/admin/orders/${encodeURIComponent(orderId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fulfillmentStatus: newStatus })
+    });
+    if (!res.ok) {
+      console.warn("API update order fulfillment returned status", res.status);
+    }
+  } catch (err) {
+    console.warn("Failed to PATCH /api/admin/orders:", err);
+  }
+}
+
+function openOrderDetailModal(orderId) {
+  const allInvoices = S.invoices || [];
+  const inv = allInvoices.find(i => i.id === orderId || i.no === orderId || String(i.id) === String(orderId)) || {};
+  const t = invTotals(inv);
+  const orderNo = inv.no || inv.number || inv.invoiceNumber || orderId;
+  const custName = inv.customer || inv.client || inv.customerName || "Studio Client";
+  const phone = inv.phone || inv.customerPhone || "";
+  const email = inv.email || inv.customerEmail || "";
+  const lines = inv.lines || [];
+  const fStatus = getOrderFulfillmentStatus(inv);
+  const [pLabel, pCls] = payStatus(inv);
+
+  const linesHtml = lines.length > 0 ? lines.map((l, idx) => `
+    <tr>
+      <td class="mono" style="font-size:12px;">${idx + 1}</td>
+      <td style="font-weight:600;">${esc(l.name || l.desc || 'Print Item')}</td>
+      <td class="n mono">${l.qty || 1}</td>
+      <td class="n mono">${money(l.price || l.unitPrice || 0)}</td>
+      <td class="n mono" style="font-weight:700;">${money(l.total || ((l.qty || 1) * (l.price || 0)))}</td>
+    </tr>
+  `).join("") : `
+    <tr>
+      <td class="mono">1</td>
+      <td style="font-weight:600;">Custom 3D Printing Service</td>
+      <td class="n mono">1</td>
+      <td class="n mono">${money(t.sub)}</td>
+      <td class="n mono" style="font-weight:700;">${money(t.sub)}</td>
+    </tr>
+  `;
+
+  $("#modalRoot").innerHTML = `
+    <div class="scrim" id="scrim">
+      <div class="modal order-detail-modal" style="max-width:640px;width:100%;border-radius:18px;background:var(--color-surface);box-shadow:0 12px 40px rgba(0,0,0,0.18);padding:0;overflow:hidden;border:1px solid var(--color-border);" role="dialog">
+        <div style="padding:18px 24px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;background:var(--color-surface-muted);">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:36px;height:36px;border-radius:10px;background:var(--color-surface);display:flex;align-items:center;justify-content:center;color:var(--color-brand,#059669);">
+              ${APP_ICONS.navOrders}
+            </div>
+            <div>
+              <h3 style="margin:0;font-size:16px;font-weight:700;">Order ${esc(orderNo)}</h3>
+              <p class="muted" style="margin:0;font-size:12px;">Placed ${inv.date ? formatDateShort(inv.date) : "Recent"}</p>
+            </div>
+          </div>
+          <button type="button" class="modal-close-x" id="modalCloseX" aria-label="Close dialog" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--color-text-secondary);">✕</button>
+        </div>
+
+        <div style="padding:20px 24px;max-height:calc(85vh - 140px);overflow-y:auto;display:flex;flex-direction:column;gap:18px;">
+          <!-- Customer Details Card -->
+          <div style="padding:14px;border-radius:12px;background:var(--color-surface-muted);border:1px solid var(--color-border);display:flex;justify-content:space-between;align-items:flex-start;">
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;margin-bottom:4px;">Customer Details</div>
+              <div style="font-size:14px;font-weight:700;color:var(--color-text-primary);">${esc(custName)}</div>
+              ${phone ? `<div class="muted" style="font-size:12px;margin-top:2px;">Phone: <span class="mono">${esc(phone)}</span></div>` : ''}
+              ${email ? `<div class="muted" style="font-size:12px;">Email: <span>${esc(email)}</span></div>` : ''}
+            </div>
+            ${phone ? `
+              <a href="https://wa.me/${phone.replace(/\\D/g, '')}?text=${encodeURIComponent(`Hello ${custName}, regarding your 3D print order ${orderNo}:`)}" target="_blank" rel="noopener noreferrer" class="btn sm" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;background:#25D366;color:#ffffff;border:none;font-weight:600;">
+                WhatsApp Client
+              </a>
+            ` : ''}
+          </div>
+
+          <!-- Items Table -->
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;margin-bottom:8px;">Order Specifications & Line Items</div>
+            <table class="table" style="width:100%;font-size:12.5px;">
+              <thead>
+                <tr>
+                  <th style="width:40px;">#</th>
+                  <th>Item Name / Model</th>
+                  <th class="n">Qty</th>
+                  <th class="n">Unit (AED)</th>
+                  <th class="n">Line Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${linesHtml}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Summary Breakdown with 5% UAE VAT -->
+          <div style="margin-top:auto;padding-top:12px;border-top:1px solid var(--color-border);display:flex;flex-direction:column;gap:6px;">
+            <div style="display:flex;justify-content:space-between;font-size:13px;">
+              <span class="muted">Subtotal (excl. VAT)</span>
+              <span class="mono">${money(t.sub)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;">
+              <span class="muted">UAE VAT (5%)</span>
+              <span class="mono">${money(t.vat)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;padding-top:4px;border-top:1px dashed var(--color-border);">
+              <span>Total Amount (AED)</span>
+              <span class="mono" style="color:var(--color-brand,#059669);">${money(t.total)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+              <span class="muted" style="font-size:12px;">Payment: <span class="pill ${pCls}">${pLabel}</span></span>
+              <span class="muted" style="font-size:12px;">Fulfillment: <span class="pill neu">${fStatus.replace('_', ' ')}</span></span>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:14px 24px;border-top:1px solid var(--color-border);display:flex;justify-content:flex-end;gap:10px;background:var(--color-surface-muted);">
+          <button type="button" class="btn sm" id="modalCloseBtn">Close</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const closeFn = () => { $("#modalRoot").innerHTML = ""; };
+  const closeX = $("#modalCloseX");
+  const closeBtn = $("#modalCloseBtn");
+  const scrim = $("#scrim");
+  if (closeX) closeX.addEventListener("click", closeFn);
+  if (closeBtn) closeBtn.addEventListener("click", closeFn);
+  if (scrim) scrim.addEventListener("click", e => { if (e.target === scrim) closeFn(); });
+}
+
+function bindOrders() {
+  const searchInp = $("#orderSearchInput");
+  if (searchInp) {
+    searchInp.addEventListener("input", e => {
+      orderSearch = e.target.value.toLowerCase().trim();
+      render();
+    });
+  }
+
+  $$(".order-filter-pill").forEach(btn => {
+    btn.addEventListener("click", () => {
+      orderFilter = btn.dataset.filter;
+      render();
+    });
+  });
+
+  $$(".select-order-fulfillment").forEach(sel => {
+    sel.addEventListener("change", async () => {
+      const orderId = sel.dataset.orderId;
+      const newStatus = sel.value;
+      await updateOrderFulfillment(orderId, newStatus);
+    });
+  });
+
+  $$(".btn-view-order-details").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const orderId = btn.dataset.orderId;
+      openOrderDetailModal(orderId);
+    });
+  });
+}
+
 function vOrders() {
-  const prints = S.prints || [];
-  const invoices = S.invoices || [];
+  const allInvoices = (S.invoices || []).filter(i => i.type !== "quote" && i.status !== "void");
 
-  const queued = prints.filter(p => p.statusLabel === "Printing" || p.status === "Printing").length;
-  const completed = prints.filter(p => p.statusLabel === "Success" || p.status === "Success").length;
+  const inProductionCount = allInvoices.filter(i => getOrderFulfillmentStatus(i) === "IN_PRODUCTION").length;
+  const readyCount = allInvoices.filter(i => getOrderFulfillmentStatus(i) === "READY").length;
+  const deliveredCount = allInvoices.filter(i => getOrderFulfillmentStatus(i) === "DELIVERED").length;
+  const totalBilled = allInvoices.reduce((acc, i) => acc + (invTotals(i).total || N(i.total) || 0), 0);
 
-  const orderRows = invoices.slice(0, 10).map((inv, idx) => {
+  const filtered = allInvoices.filter(inv => {
+    const fStatus = getOrderFulfillmentStatus(inv);
+    const pStat = payStatus(inv)[0].toUpperCase();
+    if (orderFilter === "IN_PRODUCTION" && fStatus !== "IN_PRODUCTION") return false;
+    if (orderFilter === "READY" && fStatus !== "READY") return false;
+    if (orderFilter === "DELIVERED" && fStatus !== "DELIVERED") return false;
+    if (orderFilter === "PAID" && pStat !== "PAID") return false;
+    if (orderFilter === "PENDING" && pStat === "PAID") return false;
+
+    if (orderSearch) {
+      const q = orderSearch.toLowerCase();
+      const noStr = String(inv.no || inv.id || "").toLowerCase();
+      const custStr = String(inv.customer || inv.client || inv.customerName || "").toLowerCase();
+      const phoneStr = String(inv.phone || inv.customerPhone || "").toLowerCase();
+      const lineStr = (inv.lines || []).map(l => String(l.name || l.desc || "")).join(" ").toLowerCase();
+      if (!noStr.includes(q) && !custStr.includes(q) && !phoneStr.includes(q) && !lineStr.includes(q)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const orderRows = filtered.map((inv, idx) => {
     const t = invTotals(inv);
+    const orderNo = inv.no || inv.number || inv.invoiceNumber || `ORD-${1000 + idx}`;
+    const custName = inv.customer || inv.client || inv.customerName || "Studio Walk-in";
+    const phone = inv.phone || inv.customerPhone || "";
+    const email = inv.email || inv.customerEmail || "";
     const dateStr = inv.date ? formatDateShort(inv.date) : "—";
+    const lineCount = inv.lines?.length || 1;
+    const itemsPreview = (inv.lines || []).map(l => `${l.name || l.desc || 'Print Item'} ×${l.qty || 1}`).join(", ") || "3D Print Custom Batch";
+    const fStatus = getOrderFulfillmentStatus(inv);
+    const [pLabel, pCls] = payStatus(inv);
+
     return `
-      <tr>
-        <td class="mono" style="font-weight:600;">ORD-${1000 + idx}</td>
-        <td><strong>${esc(inv.customer || "Walk-in Customer")}</strong></td>
+      <tr data-order-row="${esc(inv.id || orderNo)}">
+        <td class="mono" style="font-weight:700;color:var(--color-brand,#059669);">${esc(orderNo)}</td>
+        <td>
+          <div style="font-weight:600;font-size:13.5px;">${esc(custName)}</div>
+          <div class="muted mono" style="font-size:11px;">${phone ? esc(phone) : (email ? esc(email) : "Storefront Order")}</div>
+        </td>
         <td>${dateStr}</td>
-        <td class="n mono">${inv.lines?.length || 1} line item(s)</td>
+        <td>
+          <div style="font-weight:600;font-size:12px;">${lineCount} item${lineCount > 1 ? 's' : ''}</div>
+          <div class="muted" style="font-size:11px;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${esc(itemsPreview)}">${esc(itemsPreview)}</div>
+        </td>
         <td class="n mono" style="font-weight:700;">${money(t.total)}</td>
-        <td><span class="pill good">Fulfilled</span></td>
+        <td><span class="pill ${pCls}">${pLabel}</span></td>
+        <td>
+          <select class="inp select-order-fulfillment" data-order-id="${esc(inv.id || orderNo)}" style="padding:4px 8px;font-size:12px;font-weight:600;border-radius:6px;width:auto;cursor:pointer;background:var(--color-surface);">
+            <option value="IN_PRODUCTION" ${fStatus === 'IN_PRODUCTION' ? 'selected' : ''}>In Production</option>
+            <option value="READY" ${fStatus === 'READY' ? 'selected' : ''}>Ready for Pickup</option>
+            <option value="DELIVERED" ${fStatus === 'DELIVERED' ? 'selected' : ''}>Delivered</option>
+          </select>
+        </td>
         <td style="text-align:right;">
-          <button type="button" class="btn sm" data-tab-link="prints">Inspect Print</button>
+          <div style="display:inline-flex;gap:6px;">
+            <button type="button" class="btn sm btn-view-order-details" data-order-id="${esc(inv.id || orderNo)}" title="View Order Specification">View</button>
+            <button type="button" class="btn sm" data-tab-link="prints" title="Inspect Print Production Jobs">Prints →</button>
+          </div>
         </td>
       </tr>
     `;
@@ -4491,44 +4733,53 @@ function vOrders() {
       <div class="kpis" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
         <div class="metric-card">
           <div class="metric-top">
-            <span class="metric-label">ACTIVE PRODUCTION QUEUE</span>
+            <span class="metric-label">TOTAL ORDERS</span>
             <div class="metric-icon-wrap">${APP_ICONS.navOrders}</div>
           </div>
-          <div class="metric-value">${queued} <span style="font-size:16px;font-weight:500;">jobs</span></div>
-          <div class="metric-sub">Jobs actively printing on Bambu P2S</div>
+          <div class="metric-value">${allInvoices.length} <span style="font-size:16px;font-weight:500;">orders</span></div>
+          <div class="metric-sub">Commercial client & storefront volume</div>
         </div>
         <div class="metric-card">
           <div class="metric-top">
-            <span class="metric-label">COMPLETED ORDERS</span>
+            <span class="metric-label">IN PRODUCTION</span>
             <div class="metric-icon-wrap">${APP_ICONS.navPrints}</div>
           </div>
-          <div class="metric-value">${completed} <span style="font-size:16px;font-weight:500;">orders</span></div>
-          <div class="metric-sub">Successful production batches</div>
+          <div class="metric-value" style="color:var(--color-accent,#0284c7);">${inProductionCount} <span style="font-size:16px;font-weight:500;">active</span></div>
+          <div class="metric-sub">Orders currently queued on Bambu printers</div>
         </div>
         <div class="metric-card">
           <div class="metric-top">
-            <span class="metric-label">COMMERCIAL FULFILLMENT</span>
-            <div class="metric-icon-wrap">${APP_ICONS.navInvoices}</div>
-          </div>
-          <div class="metric-value">${invoices.length} <span style="font-size:16px;font-weight:500;">invoiced</span></div>
-          <div class="metric-sub">Total sales orders dispatched</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-top">
-            <span class="metric-label">DISPATCH ACCURACY</span>
+            <span class="metric-label">READY FOR PICKUP</span>
             <div class="metric-icon-wrap">${APP_ICONS.checkSuccess(18, 2)}</div>
           </div>
-          <div class="metric-value" style="color:var(--color-brand,#059669);">98.5%</div>
-          <div class="metric-sub">On-time client delivery rate</div>
+          <div class="metric-value" style="color:var(--color-brand,#059669);">${readyCount} <span style="font-size:16px;font-weight:500;">ready</span></div>
+          <div class="metric-sub">Printed, packaged & awaiting delivery</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-top">
+            <span class="metric-label">TOTAL BILLED (AED)</span>
+            <div class="metric-icon-wrap">${APP_ICONS.metricSales(18, 2)}</div>
+          </div>
+          <div class="metric-value" style="color:var(--color-brand,#059669);">${money(totalBilled)}</div>
+          <div class="metric-sub">Gross billed order value across studio</div>
         </div>
       </div>
 
-      <div class="card" style="padding:16px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:14px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <h3 style="margin:0;font-size:15px;font-weight:700;">Orders & Fulfillment Pipeline</h3>
-          <button type="button" class="btn sm pri btn-pill-primary" data-new="invoices" data-type="sale">+ New Order</button>
+      <div class="card" style="padding:16px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:14px;margin-bottom:16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div style="display:flex;gap:8px;align-items:center;flex:1;min-width:280px;max-width:480px;">
+            <input type="search" id="orderSearchInput" class="inp" placeholder="Search orders by number, client, phone, items..." value="${esc(orderSearch)}" style="width:100%;">
+          </div>
+          <div class="segmented-control" role="group" aria-label="Order Filter" style="display:flex;gap:4px;">
+            <button type="button" class="segment-btn order-filter-pill ${orderFilter === 'ALL' ? 'active' : ''}" data-filter="ALL">All (${allInvoices.length})</button>
+            <button type="button" class="segment-btn order-filter-pill ${orderFilter === 'IN_PRODUCTION' ? 'active' : ''}" data-filter="IN_PRODUCTION">In Production (${inProductionCount})</button>
+            <button type="button" class="segment-btn order-filter-pill ${orderFilter === 'READY' ? 'active' : ''}" data-filter="READY">Ready (${readyCount})</button>
+            <button type="button" class="segment-btn order-filter-pill ${orderFilter === 'DELIVERED' ? 'active' : ''}" data-filter="DELIVERED">Delivered (${deliveredCount})</button>
+            <button type="button" class="segment-btn order-filter-pill ${orderFilter === 'PAID' ? 'active' : ''}" data-filter="PAID">Paid</button>
+            <button type="button" class="segment-btn order-filter-pill ${orderFilter === 'PENDING' ? 'active' : ''}" data-filter="PENDING">Pending</button>
+          </div>
         </div>
-        ${table(["Order ID", "Customer", "Date", "#Items", "#Total", "Status", ""], orderRows, "No active orders.")}
+        ${table(["Order #", "Customer", "Date", "Line Items", "#Total (AED)", "Payment", "Fulfillment Status", ""], orderRows, "No orders matching current filter.")}
       </div>
     </div>
   `;
