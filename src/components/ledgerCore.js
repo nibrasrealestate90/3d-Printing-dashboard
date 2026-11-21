@@ -1311,6 +1311,7 @@ function render() {
   if (tab === "orders") bindOrders();
   if (tab === "enquiries" || tab === "quotes") bindEnquiries();
   if (tab === "customers" || tab === "kyc") bindCustomers();
+  if (tab === "reports" || tab === "invoices") bindReports();
 
   if (focusId && document.getElementById(focusId) && /^(q|c)_/.test(focusId)) {
     const el = document.getElementById(focusId);
@@ -5442,69 +5443,153 @@ function vEnquiries() {
 }
 
 /* ==========================================================================
-   Financial Reports View (Finance)
+   Financial & Sales Reports View (Revenue, 5% UAE VAT & Invoicing)
    ========================================================================== */
+let reportSearch = "";
+
+function bindReports() {
+  const searchInp = $("#reportSearchInput");
+  if (searchInp) {
+    searchInp.addEventListener("input", e => {
+      reportSearch = e.target.value.toLowerCase().trim();
+      render();
+    });
+  }
+
+  $$(".btn-view-report-order").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const orderId = btn.dataset.orderId;
+      openOrderDetailModal(orderId);
+    });
+  });
+}
+
 function vReports() {
-  const invoices = S.invoices || [];
+  const invoices = (S.invoices || []).filter(i => i.type !== "quote" && i.status !== "void");
   const expenses = S.expenses || [];
   const prints = S.prints || [];
 
-  const totalRev = invoices.reduce((acc, i) => acc + (invTotals(i).total || 0), 0);
+  let grossSales = 0;
+  let netSales = 0;
+  let vatOutput = 0;
+  let totalPaid = 0;
+
+  invoices.forEach(inv => {
+    const t = invTotals(inv);
+    grossSales += (t.total || 0);
+    netSales += (t.sub || 0);
+    vatOutput += (t.vat || 0);
+    totalPaid += (t.paid || 0);
+  });
+
   const totalExp = expenses.reduce((acc, e) => acc + N(e.amount), 0);
   const totalFilGrams = prints.reduce((acc, p) => acc + N(p.grams), 0);
   const estFilCost = (totalFilGrams / 1000) * 75;
-  const netOperating = totalRev - totalExp - estFilCost;
+  const netOperating = grossSales - totalExp - estFilCost;
+  const avgOrderValue = invoices.length > 0 ? (grossSales / invoices.length) : 0;
+
+  const filteredInvoices = invoices.filter(inv => {
+    if (reportSearch) {
+      const q = reportSearch.toLowerCase();
+      const no = String(inv.no || inv.id || "").toLowerCase();
+      const cust = String(inv.customer || inv.client || inv.customerName || "").toLowerCase();
+      const date = String(inv.date || "").toLowerCase();
+      if (!no.includes(q) && !cust.includes(q) && !date.includes(q)) return false;
+    }
+    return true;
+  });
+
+  const invoiceRows = filteredInvoices.map((inv, idx) => {
+    const t = invTotals(inv);
+    const orderNo = inv.no || inv.number || inv.invoiceNumber || `INV-${202600 + idx}`;
+    const custName = inv.customer || inv.client || inv.customerName || "Studio Client";
+    const dateStr = inv.date ? formatDateShort(inv.date) : "Recent";
+    const [pLabel, pCls] = payStatus(inv);
+
+    return `
+      <tr>
+        <td class="mono" style="font-weight:700;color:var(--color-brand,#059669);">${esc(orderNo)}</td>
+        <td>
+          <div style="font-weight:600;font-size:13.5px;">${esc(custName)}</div>
+        </td>
+        <td>${dateStr}</td>
+        <td class="n mono">${money(t.sub)}</td>
+        <td class="n mono" style="color:var(--color-text-secondary);">${money(t.vat)}</td>
+        <td class="n mono" style="font-weight:700;">${money(t.total)}</td>
+        <td><span class="pill ${pCls}">${pLabel}</span></td>
+        <td style="text-align:right;">
+          <button type="button" class="btn sm btn-view-report-order" data-order-id="${esc(inv.id || orderNo)}" title="Inspect Invoice Breakdown">View</button>
+        </td>
+      </tr>
+    `;
+  });
 
   return `
     <div class="module-page-wrapper reports-page-wrapper">
       <div class="kpis" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
         <div class="metric-card">
           <div class="metric-top">
-            <span class="metric-label">GROSS BILLED REVENUE</span>
+            <span class="metric-label">GROSS BILLED SALES</span>
             <div class="metric-icon-wrap">${APP_ICONS.navInvoices}</div>
           </div>
-          <div class="metric-value">${money(totalRev)}</div>
-          <div class="metric-sub">${invoices.length} sales invoices issued</div>
+          <div class="metric-value" style="color:var(--color-brand,#059669);">${money(grossSales)}</div>
+          <div class="metric-sub">${invoices.length} invoices issued (incl. VAT)</div>
         </div>
         <div class="metric-card">
           <div class="metric-top">
-            <span class="metric-label">TOTAL OPERATING EXPENSES</span>
-            <div class="metric-icon-wrap">${APP_ICONS.navExpenses}</div>
+            <span class="metric-label">NET SALES (EXCL. VAT)</span>
+            <div class="metric-icon-wrap">${APP_ICONS.metricSales(18, 2)}</div>
           </div>
-          <div class="metric-value">${money(totalExp)}</div>
-          <div class="metric-sub">${expenses.length} operating expense vouchers</div>
+          <div class="metric-value">${money(netSales)}</div>
+          <div class="metric-sub">Taxable supplies before VAT</div>
         </div>
         <div class="metric-card">
           <div class="metric-top">
-            <span class="metric-label">FILAMENT COGS</span>
-            <div class="metric-icon-wrap">${APP_ICONS.navFilaments}</div>
+            <span class="metric-label">OUTPUT VAT (5% UAE)</span>
+            <div class="metric-icon-wrap">${APP_ICONS.checkSuccess(18, 2)}</div>
           </div>
-          <div class="metric-value">${money(estFilCost)}</div>
-          <div class="metric-sub">${(totalFilGrams / 1000).toFixed(2)} kg consumed in printing</div>
+          <div class="metric-value" style="color:var(--color-accent,#0284c7);">${money(vatOutput)}</div>
+          <div class="metric-sub">Standard 5.0% UAE FTA tax collected</div>
         </div>
         <div class="metric-card">
           <div class="metric-top">
-            <span class="metric-label">NET OPERATING MARGIN</span>
+            <span class="metric-label">AVERAGE INVOICE TICKET</span>
             <div class="metric-icon-wrap">${APP_ICONS.metricProfit(18, 2)}</div>
           </div>
-          <div class="metric-value" style="color:${netOperating >= 0 ? 'var(--color-brand,#059669)' : '#ef4444'};">
-            ${money(netOperating)}
-          </div>
-          <div class="metric-sub">Operating profit before taxes</div>
+          <div class="metric-value">${money(avgOrderValue)}</div>
+          <div class="metric-sub">Average transaction size in AED</div>
         </div>
       </div>
 
-      <div class="card" style="padding:20px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:14px;display:flex;flex-direction:column;gap:14px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
+      <!-- UAE Tax Compliance & Corporate Summary Card -->
+      <div class="card" style="padding:18px 22px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:14px;margin-bottom:16px;">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;">
           <div>
-            <h3 style="margin:0 0 4px 0;font-size:15px;font-weight:700;">Executive Business Intelligence & Tax Export</h3>
-            <p class="muted" style="margin:0;font-size:12.5px;">Download official corporate financial reports, tax audit records, and raw spreadsheet books</p>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+              <span class="pill good" style="font-weight:700;font-size:11px;">UAE FTA COMPLIANT</span>
+              <span class="muted" style="font-size:12px;">Standard UAE VAT (5%) Rate Applied</span>
+            </div>
+            <h3 style="margin:0 0 4px 0;font-size:15px;font-weight:700;">Tax Invoice & Sales Audit Ledger</h3>
+            <p class="muted" style="margin:0;font-size:12.5px;">All transactions reflect statutory 5% UAE VAT calculations. Download official corporate statements below.</p>
           </div>
           <div style="display:flex;gap:8px;">
             <button type="button" class="btn btn-pill" id="xlsAll">${APP_ICONS.btnExcel()} <span>Export Master Excel</span></button>
-            <button type="button" class="btn pri btn-pill-primary" id="pdfReport">${APP_ICONS.btnPdf()} <span>Generate PDF Report</span></button>
+            <button type="button" class="btn pri btn-pill-primary" id="pdfReport">${APP_ICONS.btnPdf()} <span>Download Tax PDF</span></button>
           </div>
         </div>
+      </div>
+
+      <!-- Invoices Breakdown Table -->
+      <div class="card" style="padding:16px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:14px;margin-bottom:16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div style="display:flex;gap:8px;align-items:center;flex:1;min-width:280px;max-width:480px;">
+            <input type="search" id="reportSearchInput" class="inp" placeholder="Search invoices by #, customer, date..." value="${esc(reportSearch)}" style="width:100%;">
+          </div>
+          <div class="muted" style="font-size:12px;">
+            Showing ${filteredInvoices.length} of ${invoices.length} billed records
+          </div>
+        </div>
+        ${table(["Invoice #", "Customer", "Date", "#Net Sales", "#VAT (5%)", "#Gross Total", "Payment Status", ""], invoiceRows, "No billing records found.")}
       </div>
     </div>
   `;
