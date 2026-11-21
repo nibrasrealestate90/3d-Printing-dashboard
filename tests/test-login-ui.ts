@@ -119,11 +119,8 @@ async function runUITests() {
     await page.fill('#admin-password', process.env.ADMIN_INITIAL_PASSWORD || 'Admin123!Secure');
     await page.click('button[type="submit"]');
 
-    // The successful login triggers navigation to "/" or "/admin"
-    await page.waitForURL(
-      (url) => url.pathname === '/' || url.pathname === '/admin',
-      { timeout: 10000 }
-    );
+    // The successful login triggers navigation to "/" or shows authenticated state
+    await page.waitForURL(`${BASE_URL}/`, { timeout: 10000 });
     console.log('Navigated to dashboard root after successful login:', page.url());
 
     // ------------------------------------------------------------------------
@@ -160,7 +157,7 @@ async function runUITests() {
     // ------------------------------------------------------------------------
     console.log('--- 11. Testing Logout Interaction ---');
     await page.click('button:has-text("Sign Out of Console")');
-    await page.waitForSelector('#admin-email', { timeout: 5000 });
+    await page.waitForSelector('#admin-login-heading', { timeout: 5000 });
     await saveScreenshot(page, 'login_logged_out_form.png');
 
     console.log('\n========================================================================');
