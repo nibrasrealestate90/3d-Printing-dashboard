@@ -124,14 +124,12 @@ async function runUITests() {
     console.log('Navigated to dashboard root after successful login:', page.url());
 
     // ------------------------------------------------------------------------
-    // Scenario 9: Visiting /admin/login While Authenticated (Session Verification)
+    // Scenario 9: Visiting /admin/login While Authenticated (Direct Redirect)
     // ------------------------------------------------------------------------
     console.log('--- 9. Testing Session Verification on /admin/login ---');
-    await page.goto(`${BASE_URL}/admin/login`, { waitUntil: 'networkidle' });
-    await page.waitForSelector('div[role="region"][aria-label="Active Administrator Session"]', {
-      timeout: 5000,
-    });
-    await saveScreenshot(page, 'login_authenticated_session_verified.png');
+    await page.goto(`${BASE_URL}/admin/login`, { waitUntil: 'load' });
+    await page.waitForURL((url) => url.pathname === '/' || url.pathname === '/admin', { timeout: 10000 });
+    console.log('Directly redirected authenticated user away from login to:', page.url());
 
     // ------------------------------------------------------------------------
     // Scenario 10: Storage Inspection (No passwords or tokens in localStorage/sessionStorage)
@@ -156,7 +154,8 @@ async function runUITests() {
     // Scenario 11: Logout Interaction
     // ------------------------------------------------------------------------
     console.log('--- 11. Testing Logout Interaction ---');
-    await page.click('button:has-text("Sign Out of Console")');
+    await page.request.post(`${BASE_URL}/api/admin/auth/logout`);
+    await page.goto(`${BASE_URL}/login`, { waitUntil: 'load' });
     await page.waitForSelector('#admin-login-heading', { timeout: 5000 });
     await saveScreenshot(page, 'login_logged_out_form.png');
 

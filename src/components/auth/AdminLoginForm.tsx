@@ -2,29 +2,19 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   Mail01Icon,
   LockIcon,
   ViewIcon,
   ViewOffSlashIcon,
-  ArrowRight01Icon,
   AlertCircleIcon,
-  CheckmarkCircle02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeIcon } from "@/components/hugeIcons";
 import { getSafeRedirectUrl } from "@/lib/safe-redirect";
 import "@/app/admin-login.css";
 
-interface UserProfile {
-  id: string;
-  email: string;
-  full_name: string;
-  role: string;
-}
-
 export function AdminLoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirectParam = searchParams ? searchParams.get("redirect") : null;
 
@@ -36,13 +26,11 @@ export function AdminLoginForm() {
   // Interaction State
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
-  const [authenticatedUser, setAuthenticatedUser] = useState<UserProfile | null>(null);
 
   // Validation & Error State
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [generalError, setGeneralError] = useState<string | null>(null);
   const [rateLimitCountdown, setRateLimitCountdown] = useState<number | null>(null);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -65,11 +53,13 @@ export function AdminLoginForm() {
         if (res.ok) {
           const data = await res.json();
           if (isMounted && data?.user) {
-            setAuthenticatedUser(data.user);
+            const targetUrl = getSafeRedirectUrl(redirectParam);
+            window.location.href = targetUrl;
+            return;
           }
         }
       } catch {
-        // Network failure or unauthenticated: leave authenticatedUser as null
+        // Network failure or unauthenticated: proceed to login form
       } finally {
         if (isMounted) {
           setIsCheckingSession(false);
@@ -85,7 +75,7 @@ export function AdminLoginForm() {
         clearInterval(countdownIntervalRef.current);
       }
     };
-  }, []);
+  }, [redirectParam]);
 
   // --------------------------------------------------------------------------
   // 2. Rate-Limit Countdown Timer
@@ -166,10 +156,10 @@ export function AdminLoginForm() {
       if (res.status === 200) {
         const data = await res.json();
         if (data.success && data.user) {
-          setAuthenticatedUser(data.user);
           setPassword("");
           const targetUrl = getSafeRedirectUrl(redirectParam);
-          router.push(targetUrl);
+          window.location.href = targetUrl;
+          return;
         } else {
           setGeneralError("Authentication succeeded but session payload was incomplete.");
         }
@@ -191,36 +181,6 @@ export function AdminLoginForm() {
       setGeneralError("Network connection failure. Unable to reach the authentication service.");
     } finally {
       setIsSubmitting(false);
-    }
-  }
-
-  // --------------------------------------------------------------------------
-  // 5. Logout Action (POST /api/admin/auth/logout)
-  // --------------------------------------------------------------------------
-  async function handleLogout() {
-    setIsLoggingOut(true);
-    setGeneralError(null);
-
-    try {
-      const res = await fetch("/api/admin/auth/logout", {
-        method: "POST",
-        headers: {
-          "Accept": "application/json",
-        },
-        credentials: "include",
-      });
-
-      if (res.ok) {
-        setAuthenticatedUser(null);
-        setEmail("");
-        setPassword("");
-      } else {
-        setGeneralError("Logout failed on server. Please refresh and try again.");
-      }
-    } catch {
-      setGeneralError("Network error while communicating logout to server.");
-    } finally {
-      setIsLoggingOut(false);
     }
   }
 
@@ -257,101 +217,6 @@ export function AdminLoginForm() {
         <p style={{ marginTop: "16px", fontSize: "11px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--color-text-muted)" }}>
           Verifying security session...
         </p>
-      </div>
-    );
-  }
-
-  // --------------------------------------------------------------------------
-  // Render: Authenticated Session View
-  // --------------------------------------------------------------------------
-  if (authenticatedUser) {
-    return (
-      <div
-        className="admin-login-card"
-        role="region"
-        aria-label="Active Administrator Session"
-      >
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", paddingBottom: "20px", borderBottom: "1px solid var(--color-border)" }}>
-          <div className="admin-login-logo-wrap" style={{ margin: 0, width: "46px", height: "46px" }}>
-            <Image
-              src="/logo.svg"
-              alt="Print Studio Logo"
-              width={30}
-              height={30}
-            />
-          </div>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span style={{ fontSize: "17px", fontWeight: 700, letterSpacing: "-0.02em", color: "var(--color-text-primary)" }}>
-                Print Studio
-              </span>
-              <span className="admin-login-dubai-pill">Admin</span>
-            </div>
-            <p style={{ fontSize: "11px", color: "var(--color-text-muted)", margin: "2px 0 0 0" }}>
-              Dubai, UAE · Additive Studio
-            </p>
-          </div>
-        </div>
-
-        {/* Verification Badge Card */}
-        <div className="admin-session-badge">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "28px", height: "28px", borderRadius: "50%", background: "rgba(16, 185, 129, 0.15)", color: "#10B981", flexShrink: 0 }}>
-            <HugeIcon icon={CheckmarkCircle02Icon} size={16} strokeWidth={2} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>
-              Active Session Verified
-            </p>
-            <p style={{ fontSize: "11px", color: "var(--color-text-secondary)", wordBreak: "break-all", fontFamily: "var(--font-mono, monospace)", margin: "3px 0 0 0" }}>
-              {authenticatedUser.email}
-            </p>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "8px" }}>
-              <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#10B981" }} />
-              <span style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--color-text-muted)" }}>
-                Role: {authenticatedUser.role} · Hardware Signatures Active
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {generalError && (
-          <div
-            id="auth-session-error-alert"
-            data-testid="auth-session-error-alert"
-            className="admin-login-alert"
-            role="alert"
-          >
-            <HugeIcon icon={AlertCircleIcon} size={16} strokeWidth={2} />
-            <p style={{ margin: 0 }}>{generalError}</p>
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="admin-session-actions">
-          <button
-            type="button"
-            onClick={() => router.push(getSafeRedirectUrl(redirectParam))}
-            className="admin-session-primary-btn"
-          >
-            <span>Open Manufacturing Ledger</span>
-            <HugeIcon icon={ArrowRight01Icon} size={16} strokeWidth={2} />
-          </button>
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-            className="admin-session-secondary-btn"
-          >
-            {isLoggingOut ? "Revoking session..." : "Sign Out of Console"}
-          </button>
-        </div>
-
-        {/* Footnote */}
-        <div className="admin-login-footnote">
-          Protected by Argon2id & Hardware-Backed Session Signatures
-        </div>
       </div>
     );
   }
