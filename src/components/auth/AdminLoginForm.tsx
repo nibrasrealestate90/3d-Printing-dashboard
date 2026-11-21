@@ -377,17 +377,9 @@ export function AdminLoginForm() {
           />
         </div>
 
-        <div className="admin-login-brand-meta">
-          <span className="admin-login-brand-title">Print Studio Ledger</span>
-          <span className="admin-login-dubai-pill">Dubai</span>
-        </div>
-
         <h1 id="admin-login-heading" className="admin-login-heading">
           Administrator Sign In
         </h1>
-        <p className="admin-login-desc">
-          Enter your authorized credentials to access the production management console.
-        </p>
       </div>
 
       {/* Global / Rate-Limit Alert Banner */}
@@ -517,13 +509,10 @@ export function AdminLoginForm() {
                   animation: "spin 1s linear infinite",
                 }}
               />
-              <span>Verifying Credentials...</span>
+              <span>Logging in...</span>
             </>
           ) : (
-            <>
-              <span>Sign In to Studio Console</span>
-              <HugeIcon icon={ArrowRight01Icon} size={16} strokeWidth={2} />
-            </>
+            <span>Log In</span>
           )}
         </button>
       </form>
