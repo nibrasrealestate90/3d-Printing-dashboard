@@ -8313,3 +8313,80 @@ html.dark .prod-drawer-footer,
   flex-direction: column;
   gap: 12px;
 }
+
+
+/* ==========================================================================
+   Logout Confirmation Modal
+   ========================================================================== */
+@keyframes logoutFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes logoutScaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.logout-modal-close-btn:hover {
+  background: rgba(6, 44, 47, 0.08) !important;
+  color: var(--color-text-primary) !important;
+}
+
+.logout-modal-cancel-btn:hover {
+  background: var(--color-surface-secondary) !important;
+  border-color: var(--color-text-muted) !important;
+}
+
+.logout-modal-confirm-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #E11D48 0%, #BE123C 100%) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(244, 63, 94, 0.45) !important;
+}
+
+.logout-modal-confirm-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+html.dark .logout-modal-scrim,
+.dark .logout-modal-scrim {
+  background-color: rgba(0, 0, 0, 0.72) !important;
+}
+
+html.dark .logout-modal-dialog,
+.dark .logout-modal-dialog {
+  background-color: #0E1A1E !important;
+  color: #E6F0F0 !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 28px 70px -15px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+}
+
+html.dark .logout-modal-dialog #logout-dialog-title,
+.dark .logout-modal-dialog #logout-dialog-title {
+  color: #E6F0F0 !important;
+}
+
+html.dark .logout-modal-dialog #logout-dialog-desc,
+.dark .logout-modal-dialog #logout-dialog-desc {
+  color: #8CA7A4 !important;
+}
+
+html.dark .logout-modal-dialog .logout-modal-note-box,
+.dark .logout-modal-dialog .logout-modal-note-box {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #8CA7A4 !important;
+}
+
+html.dark .logout-modal-dialog .logout-modal-cancel-btn,
+.dark .logout-modal-dialog .logout-modal-cancel-btn {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #E6F0F0 !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+html.dark .logout-modal-close-btn:hover,
+.dark .logout-modal-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #FFFFFF !important;
+}

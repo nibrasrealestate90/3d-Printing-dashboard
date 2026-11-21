@@ -23,6 +23,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeIcon } from "@/components/hugeIcons";
 import { useWorkspaceTransition } from "@/components/workspace";
+import { LogoutConfirmationModal } from "@/components/auth/LogoutConfirmationModal";
 import "@/app/business-workspace.css";
 
 export interface BusinessWorkspaceLayoutProps {
@@ -78,6 +79,7 @@ export function BusinessWorkspaceLayout({
   const { isSwitching, switchToWorkspace } = useWorkspaceTransition();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   async function handleLogout() {
     setIsLoggingOut(true);
@@ -87,12 +89,10 @@ export function BusinessWorkspaceLayout({
         headers: { Accept: "application/json" },
         credentials: "include",
       });
-      router.push("/login");
     } catch {
-      router.push("/login");
-    } finally {
-      setIsLoggingOut(false);
+      // Proceed to login
     }
+    window.location.href = "/login";
   }
 
   const renderNavSection = (heading: string, items: NavItem[]) => (
@@ -263,7 +263,7 @@ export function BusinessWorkspaceLayout({
 
                 <button
                   type="button"
-                  onClick={handleLogout}
+                  onClick={() => setIsLogoutModalOpen(true)}
                   disabled={isLoggingOut}
                   className="bm-header-logout-btn"
                   style={{ width: "100%", justifyContent: "center", padding: "8px 12px", marginTop: "8px" }}
@@ -304,7 +304,7 @@ export function BusinessWorkspaceLayout({
             <div className="bm-header-actions">
               <button
                 type="button"
-                onClick={handleLogout}
+                onClick={() => setIsLogoutModalOpen(true)}
                 disabled={isLoggingOut}
                 className="bm-header-logout-btn"
                 title="Sign Out of Session"
@@ -322,6 +322,13 @@ export function BusinessWorkspaceLayout({
           </main>
         </div>
       </div>
+
+      <LogoutConfirmationModal
+        isOpen={isLogoutModalOpen}
+        onClose={() => setIsLogoutModalOpen(false)}
+        onConfirm={handleLogout}
+        isLoggingOut={isLoggingOut}
+      />
     </div>
   );
 }

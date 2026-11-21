@@ -17,10 +17,12 @@ import {
   ArrowRight01Icon,
 } from "@hugeicons/core-free-icons";
 import { useWorkspaceTransition } from "@/components/workspace";
+import { LogoutConfirmationModal } from "@/components/auth/LogoutConfirmationModal";
 
 export default function PrintStudioLedger() {
   const { isSwitching, switchToWorkspace } = useWorkspaceTransition();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   async function handleLogout() {
     setIsLoggingOut(true);
@@ -91,7 +93,7 @@ export default function PrintStudioLedger() {
               className="btn-sidebar-logout"
               id="sidebarLogoutBtn"
               type="button"
-              onClick={handleLogout}
+              onClick={() => setIsLogoutModalOpen(true)}
               disabled={isLoggingOut}
               title="Sign Out of Session"
               aria-label="Sign Out"
@@ -139,7 +141,7 @@ export default function PrintStudioLedger() {
                 className="btn-icon btn-header-logout"
                 id="headerLogoutBtn"
                 type="button"
-                onClick={handleLogout}
+                onClick={() => setIsLogoutModalOpen(true)}
                 disabled={isLoggingOut}
                 title="Log Out"
                 aria-label="Log Out"
@@ -155,6 +157,13 @@ export default function PrintStudioLedger() {
       </div>
 
       <div id="modalRoot"></div>
+
+      <LogoutConfirmationModal
+        isOpen={isLogoutModalOpen}
+        onClose={() => setIsLogoutModalOpen(false)}
+        onConfirm={handleLogout}
+        isLoggingOut={isLoggingOut}
+      />
     </div>
   );
 }
