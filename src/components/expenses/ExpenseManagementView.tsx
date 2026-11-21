@@ -496,72 +496,7 @@ export function ExpenseManagementView() {
         </div>
       )}
 
-      {/* Top Action Bar */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          gap: "10px",
-          marginBottom: "16px",
-          flexWrap: "wrap",
-        }}
-      >
-        {/* Manage Categories Button */}
-        <button
-          type="button"
-          onClick={() => setIsCategoryModalOpen(true)}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "7px",
-            padding: "9px 16px",
-            borderRadius: "var(--radius-pill, 999px)",
-            border: "1px solid var(--color-border-strong, #C4D9D7)",
-            background: "var(--color-surface, #EFF9F9)",
-            color: "var(--color-text-primary, #062C2F)",
-            fontSize: "13px",
-            fontWeight: 650,
-            cursor: "pointer",
-            transition: "all 0.15s ease",
-          }}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" />
-            <path d="M7 7h.01" />
-          </svg>
-          Categories
-        </button>
-
-        {/* Add Expense Button */}
-        <button
-          type="button"
-          onClick={handleOpenAddModal}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "7px",
-            padding: "9px 20px",
-            borderRadius: "var(--radius-pill, 999px)",
-            border: "none",
-            background: "var(--color-focus, #397F7C)",
-            color: "#FFFFFF",
-            fontSize: "13px",
-            fontWeight: 650,
-            cursor: "pointer",
-            boxShadow: "0 2px 8px rgba(57, 127, 124, 0.35)",
-            transition: "all 0.15s ease",
-          }}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          Add Expense
-        </button>
-      </div>
-
-      {/* 1. KPI Cards */}
+      {/* 1. KPI Cards (Uplifted to Top) */}
       <ExpenseKPIs kpis={kpis} activePeriodLabel={activePeriodLabel} isFiltered={hasActiveFilters} />
 
       {/* 2. Filter Toolbar */}
@@ -579,6 +514,7 @@ export function ExpenseManagementView() {
         selectedCategory={selectedCategory}
         onCategoryChange={setSelectedCategory}
         categories={categories}
+        onOpenCategoriesModal={() => setIsCategoryModalOpen(true)}
         onClearFilters={handleClearFilters}
         hasActiveFilters={hasActiveFilters}
         totalMatching={filteredExpenses.length}

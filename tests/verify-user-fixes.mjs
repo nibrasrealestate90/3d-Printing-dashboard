@@ -36,21 +36,31 @@ async function main() {
     assert.strictEqual(await categoryShare.count(), 0, "Category Share chart must be removed");
     console.log("✓ Both charts successfully removed.");
 
-    // 4. Verify Categories and Add Expense buttons exist
-    console.log("4. Verifying action buttons exist...");
-    const catBtn = page.locator('button:has-text("Categories")').first();
-    const addBtn = page.locator('button:has-text("Add Expense")').first();
-    assert.strictEqual(await catBtn.isVisible(), true, "Categories button must be visible");
-    assert.strictEqual(await addBtn.isVisible(), true, "Add Expense button must be visible");
-    console.log("✓ Categories and Add Expense action buttons are visible.");
+    // 4. Verify Second Add Expense button is DELETED & Categories is in toolbar
+    console.log("4. Verifying button layout & KPI cards placement...");
+    // Check that Categories button is inside the filter toolbar next to the select
+    const toolbar = page.locator('select').first().locator('..');
+    const catBtn = toolbar.locator('button:has-text("Categories")').first();
+    assert.strictEqual(await catBtn.isVisible(), true, "Categories button must be inside filter toolbar next to category select");
+    console.log("✓ Categories button is shifted into the filter toolbar next to All Categories.");
 
-    // Take screenshot of updated Expense Page
-    const pageScreenshot = path.join(brainDir, "updated_expenses_page_desktop.png");
+    // Check that there is NO second "Add Expense" button near Categories
+    const nearbyAddExpense = toolbar.locator('button:has-text("Add Expense")');
+    assert.strictEqual(await nearbyAddExpense.count(), 0, "No duplicate Add Expense button near categories");
+    console.log("✓ Second Add Expense button near categories is deleted.");
+
+    // Check that KPI cards are uplifted to the top of the container
+    const kpiCards = page.locator('text="Total Expenses"').first();
+    assert.strictEqual(await kpiCards.isVisible(), true, "KPI cards are visible at top");
+    console.log("✓ KPI cards are uplifted to the top.");
+
+    // Take screenshot of updated Expense Page with KPIs at top
+    const pageScreenshot = path.join(brainDir, "updated_kpis_top_categories_toolbar.png");
     await page.screenshot({ path: pageScreenshot, fullPage: true });
     console.log(`✓ Saved ${pageScreenshot}`);
 
-    // 5. Open Categories Modal and verify Delete button is active/clickable
-    console.log("5. Opening Categories Modal...");
+    // 5. Open Categories Modal from toolbar button and verify Delete button is active/clickable
+    console.log("5. Opening Categories Modal from toolbar...");
     await catBtn.click();
     await page.waitForTimeout(600);
 
@@ -79,8 +89,9 @@ async function main() {
     await page.waitForTimeout(400);
 
     // 6. Test Expense CRUD: Add an expense, verify, then delete it
-    console.log("6. Testing Add Expense...");
-    await addBtn.click();
+    console.log("6. Testing Add Expense via topbar...");
+    const topbarAddBtn = page.locator('button[data-new="expenses"]').first();
+    await topbarAddBtn.click();
     await page.waitForTimeout(600);
 
     const formModal = page.locator('div[role="dialog"]');

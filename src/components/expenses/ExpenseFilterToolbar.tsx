@@ -14,6 +14,7 @@ export interface ExpenseFilterToolbarProps {
   selectedCategory: string;
   onCategoryChange: (catId: string) => void;
   categories: readonly ExpenseCategoryLike[];
+  onOpenCategoriesModal?: () => void;
   onClearFilters: () => void;
   hasActiveFilters: boolean;
   totalMatching: number;
@@ -31,6 +32,7 @@ export function ExpenseFilterToolbar({
   selectedCategory,
   onCategoryChange,
   categories,
+  onOpenCategoriesModal,
   onClearFilters,
   hasActiveFilters,
   totalMatching,
@@ -140,13 +142,12 @@ export function ExpenseFilterToolbar({
           )}
         </div>
 
-        {/* Category Selector */}
-        <div style={{ flex: "0 1 200px", minWidth: "160px" }}>
+        {/* Category Selector & Manage Button */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: "0 1 auto", flexWrap: "wrap" }}>
           <select
             value={selectedCategory}
             onChange={(e) => onCategoryChange(e.target.value)}
             style={{
-              width: "100%",
               padding: "9px 14px",
               borderRadius: "var(--radius-pill, 999px)",
               border: "1px solid var(--color-border-strong, #C4D9D7)",
@@ -158,6 +159,7 @@ export function ExpenseFilterToolbar({
               cursor: "pointer",
               fontFamily: "var(--font-sans, inherit)",
               boxSizing: "border-box",
+              minWidth: "160px",
             }}
           >
             <option value="">All Categories</option>
@@ -167,6 +169,35 @@ export function ExpenseFilterToolbar({
               </option>
             ))}
           </select>
+
+          {onOpenCategoriesModal && (
+            <button
+              type="button"
+              onClick={onOpenCategoriesModal}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 14px",
+                borderRadius: "var(--radius-pill, 999px)",
+                border: "1px solid var(--color-border-strong, #C4D9D7)",
+                background: "var(--color-surface, #EFF9F9)",
+                color: "var(--color-text-primary, #062C2F)",
+                fontSize: "12.5px",
+                fontWeight: 650,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                transition: "all 0.15s ease",
+              }}
+              title="Manage categories"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" />
+                <path d="M7 7h.01" />
+              </svg>
+              Categories
+            </button>
+          )}
         </div>
 
         {/* Clear Filters Button */}
