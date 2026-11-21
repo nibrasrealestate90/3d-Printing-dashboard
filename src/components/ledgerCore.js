@@ -2,13 +2,409 @@
 import { APP_ICONS } from "./hugeIcons";
 import { STUDIO_LOGO_BASE64 } from "./studioLogoAsset";
 import { renderFilamentSpool, EXACT_FILAMENT_COLORS } from "./FilamentSpool";
+import { mountExpenses, unmountExpenses } from "./expenses/mountExpenses";
+
+/* ==========================================================================
+   TASK 3 — EXPENSE DATA STATE, DATE FILTERING & KPI ENGINE
+   ========================================================================== */
+
+export const MAX_EXPENSE_AMOUNT = 10_000_000.00;
+
+export const DEFAULT_EXPENSE_CATEGORY_DEFINITIONS = [
+  { id: "cat_default_filament_materials", name: "Filament & Materials", order: 1, isDefault: true },
+  { id: "cat_default_electricity_utilities", name: "Electricity & Utilities", order: 2, isDefault: true },
+  { id: "cat_default_printer_maintenance_repairs", name: "Printer Maintenance & Repairs", order: 3, isDefault: true },
+  { id: "cat_default_spare_parts_accessories", name: "Spare Parts & Accessories", order: 4, isDefault: true },
+  { id: "cat_default_packaging_delivery", name: "Packaging & Delivery", order: 5, isDefault: true },
+  { id: "cat_default_marketing_advertising", name: "Marketing & Advertising", order: 6, isDefault: true },
+  { id: "cat_default_software_subscriptions", name: "Software & Subscriptions", order: 7, isDefault: true },
+  { id: "cat_default_rent_workspace", name: "Rent & Workspace", order: 8, isDefault: true },
+  { id: "cat_default_transportation", name: "Transportation", order: 9, isDefault: true },
+  { id: "cat_default_other_expenses", name: "Other Expenses", order: 10, isDefault: true }
+];
+
+export function getExpenseCategories(customCategories) {
+  let source = customCategories;
+  if (source === undefined) {
+    if (typeof S !== "undefined" && Array.isArray(S.expense_categories)) {
+      source = S.expense_categories;
+    } else if (typeof window !== "undefined" && window.S && Array.isArray(window.S.expense_categories)) {
+      source = window.S.expense_categories;
+    }
+  }
+  if (Array.isArray(source) && source.length > 0) {
+    const valid = source.filter(c => c && typeof c === "object" && typeof c.name === "string" && c.name.trim().length > 0);
+    if (valid.length > 0) {
+      return valid;
+    }
+  }
+  return DEFAULT_EXPENSE_CATEGORY_DEFINITIONS;
+}
+
+export function parseExpenseAmountToCents(raw) {
+  if (raw === undefined || raw === null || raw === "") {
+    return { valid: false, error: "Amount is required" };
+  }
+
+  const str = String(raw).trim();
+  if (!str) {
+    return { valid: false, error: "Amount is required" };
+  }
+
+  // Reject non-numeric format: digits, optional decimal point with digits
+  if (!/^\d+(\.\d+)?$/.test(str)) {
+    return { valid: false, error: "Amount must be a valid positive numeric monetary value" };
+  }
+
+  const parts = str.split(".");
+  if (parts.length > 1 && parts[1].length > 2) {
+    return {
+      valid: false,
+      error: "Amount cannot have more than two decimal places. Do not provide fractional cents."
+    };
+  }
+
+  const wholeStr = parts[0].replace(/^0+/, "") || "0";
+  const fracStr = (parts[1] || "").padEnd(2, "0").slice(0, 2);
+
+  const cents = BigInt(wholeStr) * BigInt(100) + BigInt(fracStr);
+
+  if (cents <= BigInt(0)) {
+    return { valid: false, error: "Amount must be greater than zero" };
+  }
+
+  const maxCents = BigInt(10_000_000) * BigInt(100);
+  if (cents > maxCents) {
+    return {
+      valid: false,
+      error: "Amount cannot exceed the maximum supported limit of 10,000,000.00 AED"
+    };
+  }
+
+  const amount = Number(cents) / 100;
+  const formatted = `${wholeStr}.${fracStr}`;
+
+  return {
+    valid: true,
+    cents,
+    amount,
+    formatted
+  };
+}
+
+export function expenseCentsToAmount(cents) {
+  if (cents === undefined || cents === null) return 0;
+  try {
+    const b = typeof cents === "bigint" ? cents : BigInt(Math.round(Number(cents) || 0));
+    return Number(b) / 100;
+  } catch (_) {
+    return 0;
+  }
+}
+
+export function formatExpenseAED(centsOrAmount, isCents = false) {
+  let amt = 0;
+  if (isCents) {
+    amt = expenseCentsToAmount(centsOrAmount);
+  } else {
+    amt = typeof centsOrAmount === "number" ? centsOrAmount : Number(centsOrAmount) || 0;
+  }
+  return `AED ${amt.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function parseYMD(dateStrOrObj) {
+  if (!dateStrOrObj) return null;
+  if (dateStrOrObj instanceof Date) {
+    if (isNaN(dateStrOrObj.getTime())) return null;
+    const y = dateStrOrObj.getFullYear();
+    const m = String(dateStrOrObj.getMonth() + 1).padStart(2, "0");
+    const d = String(dateStrOrObj.getDate()).padStart(2, "0");
+    return { year: y, month: dateStrOrObj.getMonth() + 1, day: dateStrOrObj.getDate(), str: `${y}-${m}-${d}` };
+  }
+  const str = String(dateStrOrObj).trim().slice(0, 10);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(str);
+  if (!match) return null;
+  const year = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  const day = parseInt(match[3], 10);
+
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  if (day > daysInMonth) return null;
+
+  return { year, month, day, str };
+}
+
+function formatYMD(year, month, day) {
+  const y = String(year).padStart(4, "0");
+  const m = String(month).padStart(2, "0");
+  const d = String(day).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function shiftDays(ymd, deltaDays) {
+  const d = new Date(ymd.year, ymd.month - 1, ymd.day, 12, 0, 0);
+  d.setDate(d.getDate() + deltaDays);
+  return {
+    year: d.getFullYear(),
+    month: d.getMonth() + 1,
+    day: d.getDate(),
+    str: formatYMD(d.getFullYear(), d.getMonth() + 1, d.getDate())
+  };
+}
+
+export function getStartEndForPeriod(range = "30d", customStart = "", customEnd = "", referenceDate = null) {
+  const ref = parseYMD(referenceDate) || parseYMD(new Date());
+
+  switch (range) {
+    case "today": {
+      return {
+        startDate: ref.str,
+        endDate: ref.str,
+        isValid: true
+      };
+    }
+
+    case "7d": {
+      const start = shiftDays(ref, -6);
+      return {
+        startDate: start.str,
+        endDate: ref.str,
+        isValid: true
+      };
+    }
+
+    case "30d": {
+      const start = shiftDays(ref, -29);
+      return {
+        startDate: start.str,
+        endDate: ref.str,
+        isValid: true
+      };
+    }
+
+    case "this_month": {
+      const startStr = formatYMD(ref.year, ref.month, 1);
+      const lastDay = new Date(ref.year, ref.month, 0).getDate();
+      const endStr = formatYMD(ref.year, ref.month, lastDay);
+      return {
+        startDate: startStr,
+        endDate: endStr,
+        isValid: true
+      };
+    }
+
+    case "last_month": {
+      const prevYear = ref.month === 1 ? ref.year - 1 : ref.year;
+      const prevMonth = ref.month === 1 ? 12 : ref.month - 1;
+      const lastDay = new Date(prevYear, prevMonth, 0).getDate();
+      const startStr = formatYMD(prevYear, prevMonth, 1);
+      const endStr = formatYMD(prevYear, prevMonth, lastDay);
+      return {
+        startDate: startStr,
+        endDate: endStr,
+        isValid: true
+      };
+    }
+
+    case "custom": {
+      const startParsed = parseYMD(customStart);
+      const endParsed = parseYMD(customEnd);
+      if (!startParsed || !endParsed) {
+        return { startDate: customStart || "", endDate: customEnd || "", isValid: false };
+      }
+      if (startParsed.str > endParsed.str) {
+        return { startDate: startParsed.str, endDate: endParsed.str, isValid: false };
+      }
+      return {
+        startDate: startParsed.str,
+        endDate: endParsed.str,
+        isValid: true
+      };
+    }
+
+    case "all":
+    default: {
+      return {
+        startDate: "",
+        endDate: "9999-12-31",
+        isValid: true
+      };
+    }
+  }
+}
+
+export function isDateInPeriod(expenseDate, startDate, endDate) {
+  const parsed = parseYMD(expenseDate);
+  if (!parsed) return false;
+  if (startDate && parsed.str < startDate) return false;
+  if (endDate && parsed.str > endDate) return false;
+  return true;
+}
+
+export function getFilteredExpenses(expensesList, options = {}) {
+  const source = Array.isArray(expensesList)
+    ? expensesList
+    : (typeof S !== "undefined" && Array.isArray(S.expenses) ? S.expenses : []);
+  if (!Array.isArray(source) || source.length === 0) return [];
+
+  const {
+    range = "all",
+    category = "all",
+    search = "",
+    customStart = "",
+    customEnd = "",
+    referenceDate = null
+  } = options;
+
+  const period = getStartEndForPeriod(range, customStart, customEnd, referenceDate);
+  if (range === "custom" && !period.isValid) {
+    return [];
+  }
+
+  const query = search ? String(search).trim().toLowerCase() : "";
+  const catFilter = category && category !== "all" ? String(category).trim().toLowerCase() : "";
+
+  return source.filter(e => {
+    if (!e || typeof e !== "object") return false;
+
+    // 1. Date filter
+    const expDate = e.expenseDate || e.date;
+    if (!isDateInPeriod(expDate, period.startDate, period.endDate)) {
+      return false;
+    }
+
+    // 2. Category filter (matches by categoryId or category name, case-insensitive)
+    if (catFilter) {
+      const eCat = String(e.category || "").trim().toLowerCase();
+      const eCatId = String(e.categoryId || "").trim().toLowerCase();
+      const matchesName = eCat === catFilter;
+      const matchesId = eCatId === catFilter;
+
+      // Also check if catFilter matches default category ID -> name mapping
+      const defaultMatch = DEFAULT_EXPENSE_CATEGORY_DEFINITIONS.find(
+        d => d.id.toLowerCase() === catFilter || d.name.toLowerCase() === catFilter
+      );
+      const matchesDefaultName = defaultMatch && eCat === defaultMatch.name.toLowerCase();
+      const matchesDefaultId = defaultMatch && eCatId === defaultMatch.id.toLowerCase();
+
+      if (!matchesName && !matchesId && !matchesDefaultName && !matchesDefaultId) {
+        return false;
+      }
+    }
+
+    // 3. Search filter (title, vendor, description)
+    if (query) {
+      const title = String(e.title || "").toLowerCase();
+      const vendor = String(e.vendor || "").toLowerCase();
+      const desc = String(e.description || e.desc || e.notes || "").toLowerCase();
+
+      if (!title.includes(query) && !vendor.includes(query) && !desc.includes(query)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+export function calculateExpenseKPIs(filteredExpenses = [], allExpenses = [], referenceDate = null) {
+  const filtered = Array.isArray(filteredExpenses) ? filteredExpenses : [];
+  const all = Array.isArray(allExpenses) ? allExpenses : (typeof S !== "undefined" && Array.isArray(S.expenses) ? S.expenses : filtered);
+
+  let totalExpensesCents = BigInt(0);
+  let transactionsCount = 0;
+  const categoryCentsMap = new Map();
+
+  for (const e of filtered) {
+    if (!e || typeof e !== "object") continue;
+    const parsed = parseExpenseAmountToCents(e.amount);
+    if (!parsed.valid || parsed.cents === undefined) continue;
+
+    totalExpensesCents += parsed.cents;
+    transactionsCount++;
+
+    const catName = String(e.category || "Other Expenses").trim() || "Other Expenses";
+    const current = categoryCentsMap.get(catName) || BigInt(0);
+    categoryCentsMap.set(catName, current + parsed.cents);
+  }
+
+  // Calculate current calendar month baseline (This Month's Expenses)
+  const ref = parseYMD(referenceDate) || parseYMD(new Date());
+  const currentMonthPrefix = `${ref.year}-${String(ref.month).padStart(2, "0")}`;
+  let thisMonthCents = BigInt(0);
+  let thisMonthFilteredCents = BigInt(0);
+
+  for (const e of all) {
+    if (!e || typeof e !== "object") continue;
+    const expDate = String(e.expenseDate || e.date || "").slice(0, 10);
+    if (expDate.startsWith(currentMonthPrefix)) {
+      const parsed = parseExpenseAmountToCents(e.amount);
+      if (parsed.valid && parsed.cents !== undefined) {
+        thisMonthCents += parsed.cents;
+      }
+    }
+  }
+
+  for (const e of filtered) {
+    if (!e || typeof e !== "object") continue;
+    const expDate = String(e.expenseDate || e.date || "").slice(0, 10);
+    if (expDate.startsWith(currentMonthPrefix)) {
+      const parsed = parseExpenseAmountToCents(e.amount);
+      if (parsed.valid && parsed.cents !== undefined) {
+        thisMonthFilteredCents += parsed.cents;
+      }
+    }
+  }
+
+  // Find highest expense category
+  let highestCategory = null;
+  if (categoryCentsMap.size > 0) {
+    let maxCents = BigInt(0);
+    let bestCat = "";
+
+    for (const [cat, cents] of categoryCentsMap.entries()) {
+      if (cents > maxCents) {
+        maxCents = cents;
+        bestCat = cat;
+      }
+    }
+
+    if (maxCents > BigInt(0)) {
+      highestCategory = {
+        name: bestCat,
+        amount: expenseCentsToAmount(maxCents),
+        cents: maxCents,
+        formatted: formatExpenseAED(maxCents, true)
+      };
+    }
+  }
+
+  const totalAmount = expenseCentsToAmount(totalExpensesCents);
+  const thisMonthAmount = expenseCentsToAmount(thisMonthCents);
+  const thisMonthFilteredAmount = expenseCentsToAmount(thisMonthFilteredCents);
+
+  return {
+    totalExpenses: totalAmount,
+    totalExpensesCents,
+    totalExpensesFormatted: formatExpenseAED(totalExpensesCents, true),
+    thisMonthExpenses: thisMonthAmount,
+    thisMonthExpensesCents: thisMonthCents,
+    thisMonthExpensesFormatted: formatExpenseAED(thisMonthCents, true),
+    thisMonthFilteredExpenses: thisMonthFilteredAmount,
+    thisMonthFilteredExpensesCents: thisMonthFilteredCents,
+    thisMonthFilteredExpensesFormatted: formatExpenseAED(thisMonthFilteredCents, true),
+    transactionsCount,
+    highestCategory
+  };
+}
 
 export function initLedger() {
 
 "use strict";
 
-const COLLS = ["filaments", "filament_stock", "products", "prints", "invoices", "expenses"];
-const S = { filaments: [], filament_stock: [], products: [], prints: [], invoices: [], expenses: [], settings: {} };
+const COLLS = ["filaments", "filament_stock", "products", "prints", "invoices", "expenses", "expense_categories"];
+const S = { filaments: [], filament_stock: [], products: [], prints: [], invoices: [], expenses: [], expense_categories: [], settings: {} };
 
 const DEF = {
   bizName: "Print Studio",
@@ -679,7 +1075,7 @@ const TABS = [
   ["products", "Product Catalogue"],
   ["prints", "Print Jobs"],
   ["filaments", "Filament Inventory"],
-  ["stock", "Stock Management"],
+  ["expenses", "Expenses"],
   ["calc", "Cost Calculator"],
   ["reminders", "Maintenance Reminders"],
   ["automation-history", "Sync History"],
@@ -695,7 +1091,7 @@ const NAV_GROUPS = [
       { key: "products", label: "Product Catalogue", icon: APP_ICONS.navProducts },
       { key: "prints", label: "Print Jobs", icon: APP_ICONS.navPrints },
       { key: "filaments", label: "Filament Inventory", icon: APP_ICONS.navFilaments },
-      { key: "stock", label: "Stock Management", icon: APP_ICONS.navStock },
+      { key: "expenses", label: "Expenses", icon: APP_ICONS.navExpenses },
       { key: "calc", label: "Cost Calculator", icon: APP_ICONS.navCalc }
     ]
   },
@@ -789,24 +1185,32 @@ function vRedirectModule(tabKey, tabLabel, adminRoute) {
 
 function render() {
   try {
-    const savedTab = localStorage.getItem("ps_tab");
+    let savedTab = localStorage.getItem("ps_tab");
+    if (savedTab === "stock") {
+      savedTab = "expenses";
+      try { localStorage.setItem("ps_tab", "expenses"); } catch(_) {}
+    }
     const allowedTabs = [
-      "dashboard", "products", "prints", "filaments", "stock", "calc",
+      "dashboard", "products", "prints", "filaments", "expenses", "calc",
       "reminders", "automation-history", "settings"
     ];
-    if (savedTab && allowedTabs.includes(savedTab)) {
-      tab = savedTab;
+    if (savedTab && (allowedTabs.includes(savedTab) || savedTab === "stock")) {
+      tab = savedTab === "stock" ? "expenses" : savedTab;
     } else if (savedTab && !allowedTabs.includes(savedTab)) {
       tab = "dashboard";
     }
   } catch(_) {}
+  if (tab === "stock") {
+    tab = "expenses";
+  }
   const st = set_();
   const tabTitles = {
     dashboard: "Dashboard",
     products: "Product Catalogue",
     prints: "Print Jobs",
     filaments: "Filament Inventory",
-    stock: "Stock Management",
+    expenses: "Expenses",
+    stock: "Expenses",
     calc: "Cost Calculator",
     reminders: "Maintenance Reminders",
     "automation-history": "Sync History",
@@ -817,7 +1221,6 @@ function render() {
     kyc: "Customer KYC",
     quotes: "Quotations",
     invoices: "Invoices & Payments",
-    expenses: "Expenses",
     reports: "Financial Reports",
     accounts: "Accounts & Team"
   };
@@ -826,6 +1229,7 @@ function render() {
     products: "MANUFACTURING :",
     prints: "MANUFACTURING :",
     filaments: "MANUFACTURING :",
+    expenses: "MANUFACTURING :",
     stock: "MANUFACTURING :",
     calc: "MANUFACTURING :",
     reminders: "OPERATIONS :",
@@ -837,7 +1241,6 @@ function render() {
     kyc: "BUSINESS SUITE :",
     quotes: "BUSINESS SUITE :",
     invoices: "BUSINESS SUITE :",
-    expenses: "BUSINESS SUITE :",
     reports: "BUSINESS SUITE :",
     accounts: "BUSINESS SUITE :"
   };
@@ -855,7 +1258,8 @@ function render() {
     products: vProducts,
     prints: vPrints,
     filaments: vFil,
-    stock: vStock,
+    expenses: () => '<div class="module-page-wrapper expenses-page-wrapper" id="expensesPageRoot"></div>',
+    stock: () => '<div class="module-page-wrapper expenses-page-wrapper" id="expensesPageRoot"></div>',
     calc: vCalc,
     reminders: vReminders,
     "automation-history": vAutomationHistory,
@@ -865,7 +1269,6 @@ function render() {
     kyc: () => vRedirectModule("kyc", "Customer KYC", "/admin/customers"),
     quotes: () => vRedirectModule("quotes", "Quotations", "/admin/quotations"),
     invoices: () => vRedirectModule("invoices", "Invoices & Payments", "/admin/reports"),
-    expenses: () => vRedirectModule("expenses", "Expenses", "/admin/expenses"),
     reports: () => vRedirectModule("reports", "Financial Reports", "/admin/reports"),
     accounts: () => vRedirectModule("accounts", "Accounts & Team", "/admin/settings")
   }[tab] || vDash;
@@ -875,11 +1278,20 @@ function render() {
 
   if (tab === "dashboard") bindChart();
   if (tab === "calc") bindCalc();
+  if (tab === "expenses") bindExpenses();
+  else unmountExpenses();
 
   if (focusId && document.getElementById(focusId) && /^(q|c)_/.test(focusId)) {
     const el = document.getElementById(focusId);
     el.focus();
     try { el.setSelectionRange(el.value.length, el.value.length); } catch(_) {}
+  }
+}
+
+function bindExpenses() {
+  const rootEl = document.getElementById("expensesPageRoot");
+  if (rootEl) {
+    mountExpenses(rootEl);
   }
 }
 
@@ -1006,6 +1418,15 @@ try {
   window.syncBambu = syncBambu;
   window.handleSync = syncBambu;
   window.loadLedgerData = loadLedgerData;
+  window.calculateExpenseKPIs = calculateExpenseKPIs;
+  window.getFilteredExpenses = getFilteredExpenses;
+  window.getExpenseCategories = getExpenseCategories;
+  window.parseExpenseAmountToCents = parseExpenseAmountToCents;
+  window.expenseCentsToAmount = expenseCentsToAmount;
+  window.formatExpenseAED = formatExpenseAED;
+  window.getStartEndForPeriod = getStartEndForPeriod;
+  window.isDateInPeriod = isDateInPeriod;
+  window.DEFAULT_EXPENSE_CATEGORY_DEFINITIONS = DEFAULT_EXPENSE_CATEGORY_DEFINITIONS;
 } catch (_) {}
 
 function updateSyncButtonUI(syncing) {
@@ -6853,6 +7274,12 @@ const handleDocClickGlobal = async e => {
     return;
   }
 
+  // Topbar add expense
+  if (e.target.closest('[data-new="expenses"]')) {
+    window.dispatchEvent(new CustomEvent("openAddExpenseModal"));
+    return;
+  }
+
   // Topbar Sync Bambu button
   if (e.target.closest("#syncBambuBtn")) {
     syncBambu(true);
@@ -8424,8 +8851,12 @@ function exportCalcXls() {
    Boot & Initialization
    ========================================================================== */
 try {
-  const t = localStorage.getItem("ps_tab");
-  if (t && ["dashboard", "calc", "products", "filaments", "prints", "invoices", "expenses", "accounts", "settings"].includes(t)) tab = t;
+  let t = localStorage.getItem("ps_tab");
+  if (t === "stock") {
+    t = "expenses";
+    try { localStorage.setItem("ps_tab", "expenses"); } catch(_) {}
+  }
+  if (t && ["dashboard", "calc", "products", "filaments", "prints", "expenses", "accounts", "settings"].includes(t)) tab = t;
 } catch(_) {}
 
 const resizeCharts = () => {

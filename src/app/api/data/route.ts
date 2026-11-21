@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { requireAdminSession, logAuditEvent, extractClientIp } from '@/lib/auth';
 
+export const ALLOWED_DATA_COLLECTIONS = new Set([
+  'products',
+  'filaments',
+  'filament_stock',
+  'invoices',
+  'prints',
+  'expenses',
+  'expense_categories',
+  'settings',
+]);
+
 let tableEnsured = false;
 async function ensureTable() {
   if (!sql || tableEnsured) return;
@@ -67,6 +78,10 @@ export async function GET(req: NextRequest) {
     const collection = url.searchParams.get('collection');
 
     if (collection) {
+      if (!ALLOWED_DATA_COLLECTIONS.has(collection)) {
+        return NextResponse.json({ error: 'Collection not accessible or forbidden' }, { status: 403 });
+      }
+
       const rows = await sql`
         SELECT record_id as id, data, updated_at 
         FROM ledger_collections 
@@ -100,11 +115,15 @@ export async function GET(req: NextRequest) {
       invoices: [],
       prints: [],
       expenses: [],
+      expense_categories: [],
       settings: []
     };
 
     rows.forEach(r => {
-      if (grouped[r.collection_name]) {
+      if (ALLOWED_DATA_COLLECTIONS.has(r.collection_name)) {
+        if (!grouped[r.collection_name]) {
+          grouped[r.collection_name] = [];
+        }
         let itemData = r.data as any;
         if (r.collection_name === 'settings' && itemData) {
           itemData = { ...itemData };
@@ -142,6 +161,7 @@ export async function POST(req: NextRequest) {
     // Batch seed/sync all collections
     if (body.syncAll && body.collections) {
       for (const [coll, items] of Object.entries(body.collections as Record<string, any[]>)) {
+        if (!ALLOWED_DATA_COLLECTIONS.has(coll)) continue;
         for (const item of items) {
           if (!item.id) continue;
           let itemData = item;
@@ -184,6 +204,10 @@ export async function POST(req: NextRequest) {
     const { collection, id, data } = body;
     if (!collection || !id || !data) {
       return NextResponse.json({ error: 'Missing collection, id, or data' }, { status: 400 });
+    }
+
+    if (!ALLOWED_DATA_COLLECTIONS.has(collection)) {
+      return NextResponse.json({ error: 'Collection not accessible or forbidden' }, { status: 403 });
     }
 
     let finalData = data;
@@ -244,6 +268,10 @@ export async function DELETE(req: NextRequest) {
 
     if (!collection || !id) {
       return NextResponse.json({ error: 'Missing collection or id' }, { status: 400 });
+    }
+
+    if (!ALLOWED_DATA_COLLECTIONS.has(collection)) {
+      return NextResponse.json({ error: 'Collection not accessible or forbidden' }, { status: 403 });
     }
 
     await sql`
