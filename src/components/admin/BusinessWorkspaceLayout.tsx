@@ -7,10 +7,6 @@ import Image from "next/image";
 import {
   DashboardSquare01Icon,
   PackageIcon,
-  Invoice01Icon,
-  Mail01Icon,
-  UserMultiple02Icon,
-  Analytics01Icon,
   Settings01Icon,
   PrinterIcon,
   Logout01Icon,
@@ -46,22 +42,15 @@ interface NavItem {
   badge?: string;
 }
 
-const CORE_NAV_ITEMS: NavItem[] = [
+const STOREFRONT_CONTENT_NAV_ITEMS: NavItem[] = [
   { path: "/admin", label: "Overview", icon: DashboardSquare01Icon },
   { path: "/admin/products", label: "Products", icon: PackageIcon },
   { path: "/admin/categories", label: "Categories", icon: Tag01Icon },
-  { path: "/admin/orders", label: "Orders", icon: Invoice01Icon },
 ];
 
-const SALES_NAV_ITEMS: NavItem[] = [
-  { path: "/admin/enquiries", label: "Enquiries", icon: Mail01Icon },
-  { path: "/admin/customers", label: "Customers", icon: UserMultiple02Icon },
-];
-
-const FINANCE_STORE_NAV_ITEMS: NavItem[] = [
-  { path: "/admin/reports", label: "Reports", icon: Analytics01Icon },
-  { path: "/admin/instagram", label: "Instagram", icon: InstagramIcon },
+const MEDIA_MARKETING_NAV_ITEMS: NavItem[] = [
   { path: "/admin/media", label: "Media Library", icon: Image01Icon },
+  { path: "/admin/instagram", label: "Instagram", icon: InstagramIcon },
 ];
 
 const SYSTEM_NAV_ITEMS: NavItem[] = [
@@ -139,9 +128,8 @@ export function BusinessWorkspaceLayout({
 
   const renderNavLinks = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-      {renderNavSection("Core Operations", CORE_NAV_ITEMS)}
-      {renderNavSection("Sales & Clients", SALES_NAV_ITEMS)}
-      {renderNavSection("Store & Finance", FINANCE_STORE_NAV_ITEMS)}
+      {renderNavSection("Storefront Content", STOREFRONT_CONTENT_NAV_ITEMS)}
+      {renderNavSection("Media & Marketing", MEDIA_MARKETING_NAV_ITEMS)}
       {renderNavSection("System", SYSTEM_NAV_ITEMS)}
     </div>
   );
@@ -150,7 +138,7 @@ export function BusinessWorkspaceLayout({
     <div className="bm-page-container">
       <div className="bm-app-shell">
         {/* Desktop Persistent Sidebar */}
-        <aside className="bm-sidebar" aria-label="Business Workspace Navigation">
+        <aside className="bm-sidebar" aria-label="Website Management Navigation">
           {/* Brand Area */}
           <Link href="/admin" className="bm-brand-wrap">
             <div className="bm-brand-logo">
@@ -158,7 +146,7 @@ export function BusinessWorkspaceLayout({
             </div>
             <div className="bm-brand-text">
               <h1>Print Studio</h1>
-              <p>Commercial Workspace</p>
+              <p>Website Management</p>
             </div>
           </Link>
 
@@ -220,7 +208,7 @@ export function BusinessWorkspaceLayout({
                       Print Studio
                     </span>
                     <span style={{ fontSize: "11px", color: "var(--bm-text-muted)" }}>
-                      Business Management
+                      Website Management
                     </span>
                   </div>
                 </div>
