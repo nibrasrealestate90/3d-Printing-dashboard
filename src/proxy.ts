@@ -69,6 +69,21 @@ export function proxy(req: NextRequest): NextResponse | Response {
     return NextResponse.next();
   }
 
+  // 1b. Canonical Redirects for moved Commercial & Reporting routes to Bambu Production App
+  const legacyToBambuTabMap: Record<string, string> = {
+    '/admin/orders': 'orders',
+    '/admin/enquiries': 'enquiries',
+    '/admin/customers': 'customers',
+    '/admin/reports': 'reports',
+    '/admin/quotations': 'enquiries',
+  };
+
+  if (legacyToBambuTabMap[pathname]) {
+    const targetTab = legacyToBambuTabMap[pathname];
+    const destination = new URL(`/?tab=${targetTab}`, req.url);
+    return NextResponse.redirect(destination, 307);
+  }
+
   // 2. Extract and sanitize Host header (Ignore untrusted X-Forwarded-Host)
   const rawHost = req.headers.get('host');
   if (!rawHost) {
