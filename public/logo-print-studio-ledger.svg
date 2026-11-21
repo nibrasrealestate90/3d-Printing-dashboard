@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="ringGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0084FF" />
+      <stop offset="50%" stop-color="#38BDF8" />
+      <stop offset="60%" stop-color="#FB923C" />
+      <stop offset="100%" stop-color="#FF6600" />
+    </linearGradient>
+  </defs>
+  <!-- Circular White Background -->
+  <circle cx="60" cy="60" r="56" fill="#FFFFFF" stroke="url(#ringGrad)" stroke-width="3" />
+  
+  <!-- "3D" Brand Typography -->
+  <g transform="translate(60, 48)" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="34" letter-spacing="-1">
+    <text x="-14" y="0" fill="#0084FF">3</text>
+    <text x="14" y="0" fill="#FF6600">D</text>
+  </g>
+
+  <!-- "PRINT STUDIO LEDGER" Tagline -->
+  <text x="60" y="64" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="7.5" fill="#0F172A" letter-spacing="0.08em">PRINT STUDIO</text>
+  <text x="60" y="73" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="7" fill="#0F172A" letter-spacing="0.12em">LEDGER</text>
+
+  <!-- Isometric 3D Wireframe Cube Icon -->
+  <g transform="translate(60, 85)" stroke="#0F172A" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round" fill="none">
+    <!-- Top Face -->
+    <polygon points="0,-7 6,-3.5 0,0 -6,-3.5" />
+    <!-- Left Face -->
+    <polygon points="-6,-3.5 0,0 0,7 -6,3.5" />
+    <!-- Right Face -->
+    <polygon points="0,0 6,-3.5 6,3.5 0,7" />
+  </g>
+</svg>
