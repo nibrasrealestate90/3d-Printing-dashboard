@@ -1310,6 +1310,7 @@ function render() {
   else unmountExpenses();
   if (tab === "orders") bindOrders();
   if (tab === "enquiries" || tab === "quotes") bindEnquiries();
+  if (tab === "customers" || tab === "kyc") bindCustomers();
 
   if (focusId && document.getElementById(focusId) && /^(q|c)_/.test(focusId)) {
     const el = document.getElementById(focusId);
@@ -4364,98 +4365,360 @@ function vStock() {
 /* ==========================================================================
    Customers View (Customers & Sales)
    ========================================================================== */
-function vCustomers() {
+/* ==========================================================================
+   Customers View (Client Directory & Order History)
+   ========================================================================== */
+let customerSearch = "";
+let apiCustomers = [];
+let isCustomersLoaded = false;
+
+async function loadCustomersFromApi() {
+  if (isCustomersLoaded) return;
+  try {
+    const res = await fetch("/api/admin/customers", { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.customers && Array.isArray(data.customers)) {
+        apiCustomers = data.customers;
+      }
+      isCustomersLoaded = true;
+      render();
+    }
+  } catch (err) {
+    console.warn("loadCustomersFromApi error:", err);
+  }
+}
+
+function openCustomerHistoryModal(customerId) {
+  const custList = buildCustomerDirectoryList();
+  const c = custList.find(item => item.id === customerId || item.name === customerId) || {
+    name: customerId,
+    phone: "",
+    email: "",
+    totalSpent: 0,
+    orders: []
+  };
+
+  const phone = c.phone || "";
+  const cleanDigits = phone.replace(/\D/g, "");
+  const waLink = cleanDigits ? `https://wa.me/${cleanDigits}?text=${encodeURIComponent(`Hello ${c.name}, thank you for printing with 3D Studio Dubai:`)}` : "";
+
+  const orderRows = (c.orders || []).map((o, idx) => {
+    const orderNum = o.orderNumber || o.no || `ORD-${1000 + idx}`;
+    const dateStr = o.date ? formatDateShort(o.date) : "Recent";
+    const [pLabel, pCls] = o.paymentStatus ? [o.paymentStatus, o.paymentStatus === 'PAID' ? 'good' : 'warn'] : ['Paid', 'good'];
+    const fStatus = o.fulfillmentStatus || 'DELIVERED';
+
+    return `
+      <tr>
+        <td class="mono" style="font-weight:700;color:var(--color-brand,#059669);">${esc(orderNum)}</td>
+        <td>${dateStr}</td>
+        <td class="n mono">${o.itemsCount || (o.lines?.length) || 1} line item(s)</td>
+        <td class="n mono" style="font-weight:700;">${money(o.total || 0)}</td>
+        <td><span class="pill ${pCls}">${esc(pLabel)}</span></td>
+        <td><span class="pill neu">${esc(fStatus.replace('_', ' '))}</span></td>
+      </tr>
+    `;
+  }).join("") || `
+    <tr>
+      <td colspan="6" style="text-align:center;padding:24px;" class="muted">No order history recorded for this client.</td>
+    </tr>
+  `;
+
+  $("#modalRoot").innerHTML = `
+    <div class="scrim" id="scrim">
+      <div class="modal customer-detail-modal" style="max-width:680px;width:100%;border-radius:18px;background:var(--color-surface);box-shadow:0 12px 40px rgba(0,0,0,0.18);padding:0;overflow:hidden;border:1px solid var(--color-border);" role="dialog">
+        <div style="padding:18px 24px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;background:var(--color-surface-muted);">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:40px;height:40px;border-radius:50%;background:var(--color-brand,#059669);color:#ffffff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;">
+              ${esc(c.name.slice(0, 2).toUpperCase())}
+            </div>
+            <div>
+              <h3 style="margin:0;font-size:16px;font-weight:700;">${esc(c.name)}</h3>
+              <p class="muted" style="margin:0;font-size:12px;">${c.company ? esc(c.company) + ' · ' : ''}Client Profile & Lifetime Activity</p>
+            </div>
+          </div>
+          <button type="button" class="modal-close-x" id="modalCloseX" aria-label="Close dialog" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--color-text-secondary);">✕</button>
+        </div>
+
+        <div style="padding:20px 24px;max-height:calc(85vh - 140px);overflow-y:auto;display:flex;flex-direction:column;gap:18px;">
+          <!-- Contact Details Bar -->
+          <div style="padding:14px;border-radius:12px;background:var(--color-surface-muted);border:1px solid var(--color-border);display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;margin-bottom:2px;">Contact Information</div>
+              <div style="font-size:13px;color:var(--color-text-primary);">
+                ${c.email ? `Email: <span>${esc(c.email)}</span>` : ''}
+                ${phone ? `${c.email ? ' · ' : ''}Phone: <span class="mono">${esc(phone)}</span>` : ''}
+              </div>
+            </div>
+            ${waLink ? `
+              <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="btn sm" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;background:#25D366;color:#ffffff;border:none;font-weight:600;">
+                WhatsApp Client
+              </a>
+            ` : ''}
+          </div>
+
+          <!-- Lifetime Quick Stats -->
+          <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:12px;">
+            <div style="padding:12px;border-radius:10px;background:var(--color-surface-muted);border:1px solid var(--color-border);">
+              <div class="muted" style="font-size:11px;font-weight:600;text-transform:uppercase;">Total Orders</div>
+              <div style="font-size:18px;font-weight:700;margin-top:4px;">${c.orders?.length || c.ordersCount || 0}</div>
+            </div>
+            <div style="padding:12px;border-radius:10px;background:var(--color-surface-muted);border:1px solid var(--color-border);">
+              <div class="muted" style="font-size:11px;font-weight:600;text-transform:uppercase;">Lifetime Spent</div>
+              <div style="font-size:18px;font-weight:700;color:var(--color-brand,#059669);margin-top:4px;">${money(c.totalSpent || 0)}</div>
+            </div>
+            <div style="padding:12px;border-radius:10px;background:var(--color-surface-muted);border:1px solid var(--color-border);">
+              <div class="muted" style="font-size:11px;font-weight:600;text-transform:uppercase;">Average Ticket</div>
+              <div style="font-size:18px;font-weight:700;margin-top:4px;">${money((c.orders?.length || c.ordersCount || 0) > 0 ? (c.totalSpent / (c.orders?.length || c.ordersCount || 1)) : 0)}</div>
+            </div>
+          </div>
+
+          <!-- Orders History Table -->
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;margin-bottom:8px;">Order & Fulfillment Log</div>
+            <table class="table" style="width:100%;font-size:12.5px;">
+              <thead>
+                <tr>
+                  <th>Order #</th>
+                  <th>Date</th>
+                  <th class="n">Items</th>
+                  <th class="n">Total (AED)</th>
+                  <th>Payment</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${orderRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style="padding:14px 24px;border-top:1px solid var(--color-border);display:flex;justify-content:flex-end;gap:10px;background:var(--color-surface-muted);">
+          <button type="button" class="btn sm" id="modalCloseBtn">Close</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const closeFn = () => { $("#modalRoot").innerHTML = ""; };
+  const closeX = $("#modalCloseX");
+  const closeBtn = $("#modalCloseBtn");
+  const scrim = $("#scrim");
+  if (closeX) closeX.addEventListener("click", closeFn);
+  if (closeBtn) closeBtn.addEventListener("click", closeFn);
+  if (scrim) scrim.addEventListener("click", e => { if (e.target === scrim) closeFn(); });
+}
+
+function buildCustomerDirectoryList() {
   const customerMap = new Map();
-  (S.invoices || []).forEach(inv => {
-    const raw = (inv.customer || "").trim() || "Studio Walk-in";
-    const existing = customerMap.get(raw) || {
-      name: raw,
-      channel: inv.channel || "Direct",
-      orders: 0,
-      totalSpent: 0,
-      lastDate: null,
-      kycStatus: "Verified"
-    };
-    existing.orders += 1;
-    const t = invTotals(inv);
-    existing.totalSpent += (t.total || 0);
-    if (!existing.lastDate || (inv.date && inv.date > existing.lastDate)) existing.lastDate = inv.date;
-    customerMap.set(raw, existing);
+
+  // 1. Seed from apiCustomers if loaded
+  (apiCustomers || []).forEach(ac => {
+    const key = (ac.name || "").trim().toLowerCase();
+    if (!key) return;
+    customerMap.set(key, {
+      id: ac.id || key,
+      name: ac.name,
+      email: ac.email || "",
+      phone: ac.phone || "",
+      company: ac.company || "",
+      ordersCount: ac.totalOrders || (ac.orders?.length) || 0,
+      totalSpent: ac.cumulativeSales || 0,
+      lastDate: ac.lastOrderDate || null,
+      orders: ac.orders || []
+    });
   });
 
-  const custList = Array.from(customerMap.values()).sort((a, b) => b.totalSpent - a.totalSpent);
-  const totalCust = custList.length;
-  const totalRevenue = custList.reduce((acc, c) => acc + c.totalSpent, 0);
+  // 2. Aggregate from S.invoices
+  (S.invoices || []).forEach(inv => {
+    const rawName = (inv.customer || inv.client || inv.customerName || "").trim();
+    if (!rawName) return;
+    const key = rawName.toLowerCase();
+    const existing = customerMap.get(key) || {
+      id: key,
+      name: rawName,
+      email: inv.email || inv.customerEmail || "",
+      phone: inv.phone || inv.customerPhone || "",
+      company: inv.company || "",
+      ordersCount: 0,
+      totalSpent: 0,
+      lastDate: null,
+      orders: []
+    };
 
-  const rows = custList.map(c => `
-    <tr>
-      <td>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div class="user-avatar-circle" style="width:34px;height:34px;border-radius:50%;background:var(--color-surface-muted);color:var(--color-text-primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;">
-            ${esc(c.name.slice(0, 2).toUpperCase())}
+    if (!existing.phone && (inv.phone || inv.customerPhone)) {
+      existing.phone = inv.phone || inv.customerPhone;
+    }
+    if (!existing.email && (inv.email || inv.customerEmail)) {
+      existing.email = inv.email || inv.customerEmail;
+    }
+
+    const t = invTotals(inv);
+    const orderTotal = t.total || N(inv.total) || 0;
+    
+    // Check if invoice already added
+    const orderNo = inv.no || inv.number || inv.invoiceNumber || inv.id;
+    const alreadyPresent = existing.orders.some(o => (o.orderNumber === orderNo || o.id === inv.id));
+    if (!alreadyPresent) {
+      existing.ordersCount += 1;
+      existing.totalSpent += orderTotal;
+      existing.orders.push({
+        id: inv.id || orderNo,
+        orderNumber: orderNo,
+        date: inv.date || null,
+        total: orderTotal,
+        paymentStatus: payStatus(inv)[0].toUpperCase(),
+        fulfillmentStatus: getOrderFulfillmentStatus(inv),
+        itemsCount: inv.lines?.length || 1
+      });
+    }
+
+    if (!existing.lastDate || (inv.date && inv.date > existing.lastDate)) {
+      existing.lastDate = inv.date;
+    }
+    customerMap.set(key, existing);
+  });
+
+  return Array.from(customerMap.values()).sort((a, b) => b.totalSpent - a.totalSpent);
+}
+
+function bindCustomers() {
+  if (!isCustomersLoaded) {
+    loadCustomersFromApi();
+  }
+
+  const searchInp = $("#customerSearchInput");
+  if (searchInp) {
+    searchInp.addEventListener("input", e => {
+      customerSearch = e.target.value.toLowerCase().trim();
+      render();
+    });
+  }
+
+  $$(".btn-view-customer-history").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const customerId = btn.dataset.customerId;
+      openCustomerHistoryModal(customerId);
+    });
+  });
+}
+
+function vCustomers() {
+  const custList = buildCustomerDirectoryList();
+  const totalClients = custList.length;
+  const repeatClients = custList.filter(c => c.ordersCount > 1).length;
+  const cumulativeSales = custList.reduce((acc, c) => acc + c.totalSpent, 0);
+  const avgClientValue = totalClients > 0 ? (cumulativeSales / totalClients) : 0;
+
+  const filtered = custList.filter(c => {
+    if (customerSearch) {
+      const q = customerSearch.toLowerCase();
+      const name = String(c.name || "").toLowerCase();
+      const email = String(c.email || "").toLowerCase();
+      const phone = String(c.phone || "").toLowerCase();
+      const comp = String(c.company || "").toLowerCase();
+      if (!name.includes(q) && !email.includes(q) && !phone.includes(q) && !comp.includes(q)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const rows = filtered.map(c => {
+    const phone = c.phone || "";
+    const cleanDigits = phone.replace(/\D/g, "");
+    const waLink = cleanDigits ? `https://wa.me/${cleanDigits}?text=${encodeURIComponent(`Hello ${c.name}, regarding your orders with 3D Studio Dubai:`)}` : "";
+
+    return `
+      <tr>
+        <td>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:36px;height:36px;border-radius:50%;background:var(--color-surface-muted);color:var(--color-text-primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;border:1px solid var(--color-border);">
+              ${esc(c.name.slice(0, 2).toUpperCase())}
+            </div>
+            <div>
+              <div style="font-weight:600;font-size:13.5px;">${esc(c.name)}</div>
+              ${c.company ? `<div class="muted" style="font-size:11px;">${esc(c.company)}</div>` : ''}
+            </div>
           </div>
-          <div>
-            <div style="font-weight:600;font-size:13.5px;">${esc(c.name)}</div>
-            <div class="muted" style="font-size:11px;">Client since ${c.lastDate ? formatDateShort(c.lastDate) : "2026"}</div>
+        </td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div>
+              ${c.email ? `<div style="font-size:12px;">${esc(c.email)}</div>` : ''}
+              ${phone ? `<div class="muted mono" style="font-size:11px;">${esc(phone)}</div>` : ''}
+            </div>
+            ${waLink ? `
+              <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="btn sm" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#ffffff;border:none;font-weight:600;padding:3px 8px;border-radius:6px;font-size:11px;">
+                WhatsApp
+              </a>
+            ` : ''}
           </div>
-        </div>
-      </td>
-      <td><span class="pill neu">${esc(c.channel)}</span></td>
-      <td class="n mono">${c.orders} invoices</td>
-      <td class="n mono" style="font-weight:700;color:var(--color-brand,#059669);">${money(c.totalSpent)}</td>
-      <td><span class="pill good" style="font-size:11px;">● ${esc(c.kycStatus)}</span></td>
-      <td class="act" style="text-align:right;">
-        <div class="tbl-actions-group">
-          <button type="button" class="btn sm" data-tab-link="kyc" title="Inspect Customer KYC Profile">KYC Profile</button>
-          <button type="button" class="btn sm pri" data-new="invoices" data-type="sale" title="Create invoice for customer">+ Invoice</button>
-        </div>
-      </td>
-    </tr>
-  `);
+        </td>
+        <td class="n mono" style="font-weight:600;">
+          ${c.ordersCount} ${c.ordersCount === 1 ? 'order' : 'orders'}
+        </td>
+        <td class="n mono" style="font-weight:700;color:var(--color-brand,#059669);">${money(c.totalSpent)}</td>
+        <td style="font-size:12px;">${c.lastDate ? formatDateShort(c.lastDate) : "—"}</td>
+        <td style="text-align:right;">
+          <div style="display:inline-flex;gap:6px;">
+            <button type="button" class="btn sm btn-view-customer-history" data-customer-id="${esc(c.id || c.name)}" title="Inspect Customer Order History">Order History</button>
+            <button type="button" class="btn sm pri" data-new="invoices" data-type="sale" title="Create new invoice for customer">+ Order</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
 
   return `
     <div class="module-page-wrapper customers-page-wrapper">
       <div class="kpis" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
         <div class="metric-card">
           <div class="metric-top">
-            <span class="metric-label">CUSTOMER DIRECTORY</span>
+            <span class="metric-label">TOTAL CLIENTS</span>
             <div class="metric-icon-wrap">${APP_ICONS.navCustomers}</div>
           </div>
-          <div class="metric-value">${totalCust} <span style="font-size:16px;font-weight:500;">clients</span></div>
-          <div class="metric-sub">Active corporate & retail relationships</div>
+          <div class="metric-value">${totalClients} <span style="font-size:16px;font-weight:500;">clients</span></div>
+          <div class="metric-sub">Active commercial client relationships</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-top">
+            <span class="metric-label">REPEAT CLIENTS</span>
+            <div class="metric-icon-wrap">${APP_ICONS.checkSuccess(18, 2)}</div>
+          </div>
+          <div class="metric-value" style="color:var(--color-brand,#059669);">${repeatClients} <span style="font-size:16px;font-weight:500;">repeat</span></div>
+          <div class="metric-sub">Clients with multiple production runs</div>
         </div>
         <div class="metric-card">
           <div class="metric-top">
             <span class="metric-label">CUMULATIVE SALES VALUE</span>
             <div class="metric-icon-wrap">${APP_ICONS.navInvoices}</div>
           </div>
-          <div class="metric-value">${money(totalRevenue)}</div>
-          <div class="metric-sub">Lifetime customer invoice volume</div>
+          <div class="metric-value" style="color:var(--color-brand,#059669);">${money(cumulativeSales)}</div>
+          <div class="metric-sub">Gross lifetime customer billing volume</div>
         </div>
         <div class="metric-card">
           <div class="metric-top">
-            <span class="metric-label">AVG CUSTOMER VALUE</span>
+            <span class="metric-label">AVG CLIENT VALUE</span>
             <div class="metric-icon-wrap">${APP_ICONS.metricSales(18, 2)}</div>
           </div>
-          <div class="metric-value">${totalCust > 0 ? money(totalRevenue / totalCust) : money(0)}</div>
-          <div class="metric-sub">Per client relationship</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-top">
-            <span class="metric-label">KYC COMPLIANCE</span>
-            <div class="metric-icon-wrap">${APP_ICONS.navKyc}</div>
-          </div>
-          <div class="metric-value" style="color:var(--color-brand,#059669);">100%</div>
-          <div class="metric-sub">Verified customer accounts</div>
+          <div class="metric-value">${money(avgClientValue)}</div>
+          <div class="metric-sub">Average revenue per client relationship</div>
         </div>
       </div>
 
-      <div class="card" style="padding:16px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:14px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <h3 style="margin:0;font-size:15px;font-weight:700;">Customer Registry</h3>
-          <span class="muted" style="font-size:12px;">Directly synchronized with sales & billing ledger</span>
+      <div class="card" style="padding:16px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:14px;margin-bottom:16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div style="display:flex;gap:8px;align-items:center;flex:1;min-width:280px;max-width:480px;">
+            <input type="search" id="customerSearchInput" class="inp" placeholder="Search clients by name, email, phone, company..." value="${esc(customerSearch)}" style="width:100%;">
+          </div>
+          <div style="font-size:12px;color:var(--color-text-secondary);">
+            Synchronized with sales ledger & website directory
+          </div>
         </div>
-        ${table(["Customer", "Channel", "#Invoices", "#Total Spend", "KYC Status", ""], rows, "No customer records registered yet.")}
+        ${table(["Client Profile", "Contact & WhatsApp", "Total Orders", "#Cumulative Spend (AED)", "Last Order", ""], rows, "No customer records registered yet.")}
       </div>
     </div>
   `;
