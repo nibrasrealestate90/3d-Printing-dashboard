@@ -35,6 +35,8 @@ export function ExpenseDeleteModal({
       const ok = await onConfirm();
       if (ok) {
         onClose();
+      } else {
+        setDeleteError("Could not delete expense record. Please try again.");
       }
     } catch (err: any) {
       setDeleteError(err?.message || "Failed to delete expense record");

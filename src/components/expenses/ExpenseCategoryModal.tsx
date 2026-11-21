@@ -179,7 +179,7 @@ export function ExpenseCategoryModal({
               Expense Categories
             </h3>
             <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "var(--color-text-secondary, #506867)" }}>
-              Manage classification tags for accounting and expense distribution charts
+              Manage classification tags for expense recording and accounting
             </p>
           </div>
           <button
@@ -457,27 +457,25 @@ export function ExpenseCategoryModal({
                       Rename
                     </button>
 
-                    {/* Delete Button (Protected if isDefault or in use) */}
+                    {/* Delete Button (Protected only if in use) */}
                     <button
                       type="button"
                       onClick={() => handleDelete(c.id, c.name)}
-                      disabled={isDef || usageCount > 0 || deletingId === c.id}
+                      disabled={usageCount > 0 || deletingId === c.id}
                       style={{
                         background: "transparent",
                         border: "none",
-                        color: isDef || usageCount > 0 ? "var(--color-text-muted, #819493)" : "#F43F5E",
+                        color: usageCount > 0 ? "var(--color-text-muted, #819493)" : "#F43F5E",
                         fontSize: "11.5px",
                         fontWeight: 600,
-                        cursor: isDef || usageCount > 0 ? "not-allowed" : "pointer",
-                        opacity: isDef || usageCount > 0 ? 0.4 : 1,
+                        cursor: usageCount > 0 ? "not-allowed" : "pointer",
+                        opacity: usageCount > 0 ? 0.35 : 1,
                         padding: "2px 4px",
                       }}
                       title={
-                        isDef
-                          ? "Default system categories cannot be deleted"
-                          : usageCount > 0
+                        usageCount > 0
                           ? `Cannot delete while ${usageCount} expense(s) are using this category`
-                          : "Delete custom category"
+                          : `Delete category "${c.name}"`
                       }
                     >
                       {deletingId === c.id ? "Deleting..." : "Delete"}

@@ -1427,6 +1427,16 @@ try {
   window.getStartEndForPeriod = getStartEndForPeriod;
   window.isDateInPeriod = isDateInPeriod;
   window.DEFAULT_EXPENSE_CATEGORY_DEFINITIONS = DEFAULT_EXPENSE_CATEGORY_DEFINITIONS;
+  window.persistExpenseData = function(coll) {
+    try {
+      if (coll) {
+        store.persist(coll);
+      } else {
+        store.persist("expenses");
+        store.persist("expense_categories");
+      }
+    } catch (_) {}
+  };
 } catch (_) {}
 
 function updateSyncButtonUI(syncing) {

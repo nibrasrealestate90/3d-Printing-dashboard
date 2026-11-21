@@ -6,22 +6,12 @@ import {
   getFilteredExpenses,
   calculateExpenseKPIs,
   getExpenseCategories,
-  getStartEndForPeriod,
   DEFAULT_EXPENSE_CATEGORY_DEFINITIONS,
 } from "@/components/ledgerCore";
-import {
-  generateExpenseTrendData,
-  generateCategoryDistributionData,
-  generateCategoryComparisonData,
-} from "@/lib/expenseAnalytics";
 
 import { ExpenseKPIs } from "./ExpenseKPIs";
 import { ExpenseFilterToolbar } from "./ExpenseFilterToolbar";
 import { ExpenseTransactionTable } from "./ExpenseTransactionTable";
-import { ExpenseAnalyticsCard } from "./ExpenseAnalyticsCard";
-import { ExpenseTrendChart } from "./ExpenseTrendChart";
-import { ExpenseCategoryDistributionChart } from "./ExpenseCategoryDistributionChart";
-import { ExpenseCategoryComparisonChart } from "./ExpenseCategoryComparisonChart";
 import { ExpenseFormModal } from "./ExpenseFormModal";
 import { ExpenseDeleteModal } from "./ExpenseDeleteModal";
 import { ExpenseCategoryModal } from "./ExpenseCategoryModal";
@@ -88,7 +78,9 @@ export function ExpenseManagementView() {
           setExpenses(expJson.expenses);
           if (typeof window !== "undefined" && (window as any).S) {
             (window as any).S.expenses = expJson.expenses;
-            if (typeof (window as any).save === "function") (window as any).save();
+            if (typeof (window as any).persistExpenseData === "function") {
+              (window as any).persistExpenseData("expenses");
+            }
           }
         }
       }
@@ -100,7 +92,9 @@ export function ExpenseManagementView() {
           setCategories(valid);
           if (typeof window !== "undefined" && (window as any).S) {
             (window as any).S.expense_categories = valid;
-            if (typeof (window as any).save === "function") (window as any).save();
+            if (typeof (window as any).persistExpenseData === "function") {
+              (window as any).persistExpenseData("expense_categories");
+            }
           }
         }
       }
@@ -152,28 +146,6 @@ export function ExpenseManagementView() {
     return calculateExpenseKPIs(filteredExpenses, expenses);
   }, [filteredExpenses, expenses]);
 
-  // Resolved period bounds for analytics charts
-  const periodBounds = useMemo(() => {
-    return getStartEndForPeriod(range, customStart, customEnd);
-  }, [range, customStart, customEnd]);
-
-  // Analytics datasets (Task 4)
-  const trendData = useMemo(() => {
-    return generateExpenseTrendData(filteredExpenses, {
-      range,
-      startDate: periodBounds.startDate,
-      endDate: periodBounds.endDate,
-    });
-  }, [filteredExpenses, range, periodBounds]);
-
-  const categoryDistributionData = useMemo(() => {
-    return generateCategoryDistributionData(filteredExpenses, categories);
-  }, [filteredExpenses, categories]);
-
-  const categoryComparisonData = useMemo(() => {
-    return generateCategoryComparisonData(filteredExpenses, categories, { maxItems: 10 });
-  }, [filteredExpenses, categories]);
-
   const hasActiveFilters = Boolean(searchQuery || selectedCategory || range !== "30d" || customStart || customEnd);
 
   const handleClearFilters = useCallback(() => {
@@ -216,21 +188,7 @@ export function ExpenseManagementView() {
       const endpoint = "/api/admin/expenses";
       const method = isEditing ? "PUT" : "POST";
 
-      try {
-        const res = await fetch(endpoint, {
-          method,
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        const json = await res.json();
-        if (!res.ok) {
-          throw new Error(json.error || `Failed to ${isEditing ? "update" : "create"} expense`);
-        }
-
-        const savedExp: ExpenseRecordLike = json.expense || payload;
-
-        // Update local state immediately
+      const commitLocally = (savedExp: ExpenseRecordLike, isLocalOnly = false) => {
         setExpenses((prev) => {
           let updated: ExpenseRecordLike[];
           if (isEditing) {
@@ -240,17 +198,55 @@ export function ExpenseManagementView() {
           }
           if (typeof window !== "undefined" && (window as any).S) {
             (window as any).S.expenses = updated;
-            if (typeof (window as any).save === "function") (window as any).save();
+            if (typeof (window as any).persistExpenseData === "function") {
+              (window as any).persistExpenseData("expenses");
+            }
           }
           return updated;
         });
+        showToast(
+          isLocalOnly
+            ? (isEditing ? "Expense updated locally." : "Expense recorded locally.")
+            : (isEditing ? "Expense updated successfully." : "Expense recorded successfully."),
+          "success"
+        );
+      };
 
-        showToast(isEditing ? "Expense updated successfully." : "Expense recorded successfully.", "success");
+      try {
+        const res = await fetch(endpoint, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 503) {
+            const fallbackExp: ExpenseRecordLike = {
+              ...payload,
+              id: payload.id || `exp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+              updatedAt: new Date().toISOString(),
+              createdAt: payload.createdAt || new Date().toISOString(),
+            };
+            commitLocally(fallbackExp, true);
+            return true;
+          }
+          throw new Error(json.message || json.error || `Failed to ${isEditing ? "update" : "create"} expense`);
+        }
+
+        const savedExp: ExpenseRecordLike = json.expense || payload;
+        commitLocally(savedExp, false);
         return true;
       } catch (err: any) {
-        console.error("Save expense error:", err);
-        showToast(err.message || "Failed to save expense", "error");
-        return false;
+        console.error("Save expense fallback:", err);
+        const fallbackExp: ExpenseRecordLike = {
+          ...payload,
+          id: payload.id || `exp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          updatedAt: new Date().toISOString(),
+          createdAt: payload.createdAt || new Date().toISOString(),
+        };
+        commitLocally(fallbackExp, true);
+        return true;
       }
     },
     [showToast]
@@ -260,31 +256,43 @@ export function ExpenseManagementView() {
     if (!deletingExpense || !deletingExpense.id) return false;
     const expId = deletingExpense.id;
 
+    const commitDeleteLocally = (isLocalOnly = false) => {
+      setExpenses((prev) => {
+        const updated = prev.filter((e) => e.id !== expId);
+        if (typeof window !== "undefined" && (window as any).S) {
+          (window as any).S.expenses = updated;
+          if (typeof (window as any).persistExpenseData === "function") {
+            (window as any).persistExpenseData("expenses");
+          }
+        }
+        return updated;
+      });
+      showToast(
+        isLocalOnly ? "Expense record removed locally." : "Expense record removed from ledger.",
+        "success"
+      );
+    };
+
     try {
       const res = await fetch(`/api/admin/expenses?id=${encodeURIComponent(expId)}`, {
         method: "DELETE",
       });
 
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(json.error || "Failed to delete expense");
+        if (res.status === 401 || res.status === 503) {
+          commitDeleteLocally(true);
+          return true;
+        }
+        throw new Error(json.message || json.error || "Failed to delete expense");
       }
 
-      setExpenses((prev) => {
-        const updated = prev.filter((e) => e.id !== expId);
-        if (typeof window !== "undefined" && (window as any).S) {
-          (window as any).S.expenses = updated;
-          if (typeof (window as any).save === "function") (window as any).save();
-        }
-        return updated;
-      });
-
-      showToast("Expense record removed from ledger.", "success");
+      commitDeleteLocally(false);
       return true;
     } catch (err: any) {
-      console.error("Delete expense error:", err);
-      showToast(err.message || "Failed to delete expense", "error");
-      return false;
+      console.error("Delete expense fallback:", err);
+      commitDeleteLocally(true);
+      return true;
     }
   }, [deletingExpense, showToast]);
 
@@ -301,9 +309,29 @@ export function ExpenseManagementView() {
           body: JSON.stringify(catData),
         });
 
-        const json = await res.json();
+        const json = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error(json.error || "Failed to create category");
+          if (res.status === 401 || res.status === 503) {
+            const fallbackCat: ExpenseCategoryLike = {
+              id: `cat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+              name: catData.name,
+              color: catData.color,
+              isDefault: false,
+            };
+            setCategories((prev) => {
+              const updated = [...prev, fallbackCat];
+              if (typeof window !== "undefined" && (window as any).S) {
+                (window as any).S.expense_categories = updated;
+                if (typeof (window as any).persistExpenseData === "function") {
+                  (window as any).persistExpenseData("expense_categories");
+                }
+              }
+              return updated;
+            });
+            showToast(`Category "${catData.name}" created locally.`, "success");
+            return true;
+          }
+          throw new Error(json.message || json.error || "Failed to create category");
         }
 
         const newCat = json.category;
@@ -311,7 +339,9 @@ export function ExpenseManagementView() {
           const updated = [...prev, newCat];
           if (typeof window !== "undefined" && (window as any).S) {
             (window as any).S.expense_categories = updated;
-            if (typeof (window as any).save === "function") (window as any).save();
+            if (typeof (window as any).persistExpenseData === "function") {
+              (window as any).persistExpenseData("expense_categories");
+            }
           }
           return updated;
         });
@@ -335,9 +365,26 @@ export function ExpenseManagementView() {
           body: JSON.stringify({ id, name }),
         });
 
-        const json = await res.json();
+        const json = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error(json.error || "Failed to rename category");
+          if (res.status === 401 || res.status === 503) {
+            setCategories((prev) => {
+              const updated = prev.map((c) => (c.id === id ? { ...c, name } : c));
+              if (typeof window !== "undefined" && (window as any).S) {
+                (window as any).S.expense_categories = updated;
+                if (typeof (window as any).persistExpenseData === "function") {
+                  (window as any).persistExpenseData("expense_categories");
+                }
+              }
+              return updated;
+            });
+            setExpenses((prev) =>
+              prev.map((e) => (e.categoryId === id ? { ...e, category: name } : e))
+            );
+            showToast(`Category renamed to "${name}" locally.`, "success");
+            return true;
+          }
+          throw new Error(json.message || json.error || "Failed to rename category");
         }
 
         const updatedCat = json.category;
@@ -345,7 +392,9 @@ export function ExpenseManagementView() {
           const updated = prev.map((c) => (c.id === id ? { ...c, ...updatedCat } : c));
           if (typeof window !== "undefined" && (window as any).S) {
             (window as any).S.expense_categories = updated;
-            if (typeof (window as any).save === "function") (window as any).save();
+            if (typeof (window as any).persistExpenseData === "function") {
+              (window as any).persistExpenseData("expense_categories");
+            }
           }
           return updated;
         });
@@ -367,32 +416,56 @@ export function ExpenseManagementView() {
 
   const handleDeleteCategory = useCallback(
     async (id: string) => {
+      const commitCategoryDelete = () => {
+        setCategories((prev) => {
+          const updated = prev.filter((c) => c.id !== id);
+          if (typeof window !== "undefined" && (window as any).S) {
+            (window as any).S.expense_categories = updated;
+            if (typeof (window as any).persistExpenseData === "function") {
+              (window as any).persistExpenseData("expense_categories");
+            }
+          }
+          return updated;
+        });
+      };
+
       try {
         const res = await fetch(`/api/admin/expenses/categories?id=${encodeURIComponent(id)}`, {
           method: "DELETE",
         });
 
-        const json = await res.json();
+        const json = await res.json().catch(() => ({}));
         if (!res.ok) {
-          return { success: false, error: json.error || "Failed to delete category" };
+          if (res.status === 401 || res.status === 503) {
+            const inUseLocally = expenses.some(
+              (e) => e.categoryId === id || (e.category || "").toLowerCase() === (categories.find(c => c.id === id)?.name || "").toLowerCase()
+            );
+            if (inUseLocally) {
+              return { success: false, error: "Cannot delete category while expenses are assigned to it." };
+            }
+            commitCategoryDelete();
+            showToast("Category removed locally.", "success");
+            return { success: true };
+          }
+          return { success: false, error: json.message || json.error || "Failed to delete category" };
         }
 
-        setCategories((prev) => {
-          const updated = prev.filter((c) => c.id !== id);
-          if (typeof window !== "undefined" && (window as any).S) {
-            (window as any).S.expense_categories = updated;
-            if (typeof (window as any).save === "function") (window as any).save();
-          }
-          return updated;
-        });
-
+        commitCategoryDelete();
         showToast("Category removed.", "success");
         return { success: true };
       } catch (err: any) {
-        return { success: false, error: err.message || "Failed to delete category" };
+        const inUseLocally = expenses.some(
+          (e) => e.categoryId === id || (e.category || "").toLowerCase() === (categories.find(c => c.id === id)?.name || "").toLowerCase()
+        );
+        if (inUseLocally) {
+          return { success: false, error: "Cannot delete category while expenses are assigned to it." };
+        }
+        commitCategoryDelete();
+        showToast("Category removed locally.", "success");
+        return { success: true };
       }
     },
-    [showToast]
+    [showToast, expenses, categories]
   );
 
   return (
@@ -423,147 +496,75 @@ export function ExpenseManagementView() {
         </div>
       )}
 
-      {/* Page Header */}
+      {/* Top Action Bar */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          gap: "16px",
-          marginBottom: "20px",
+          justifyContent: "flex-end",
+          gap: "10px",
+          marginBottom: "16px",
           flexWrap: "wrap",
         }}
       >
-        <div>
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "22px",
-              fontWeight: 750,
-              color: "var(--color-text-primary, #062C2F)",
-              letterSpacing: "-0.4px",
-            }}
-          >
-            Expenses
-          </h2>
-          <p
-            style={{
-              margin: "4px 0 0 0",
-              fontSize: "13px",
-              color: "var(--color-text-secondary, #506867)",
-              lineHeight: "1.4",
-            }}
-          >
-            Track, categorize, and review business expenditures, studio supplies, and operating overheads.
-          </p>
-        </div>
+        {/* Manage Categories Button */}
+        <button
+          type="button"
+          onClick={() => setIsCategoryModalOpen(true)}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "7px",
+            padding: "9px 16px",
+            borderRadius: "var(--radius-pill, 999px)",
+            border: "1px solid var(--color-border-strong, #C4D9D7)",
+            background: "var(--color-surface, #EFF9F9)",
+            color: "var(--color-text-primary, #062C2F)",
+            fontSize: "13px",
+            fontWeight: 650,
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" />
+            <path d="M7 7h.01" />
+          </svg>
+          Categories
+        </button>
 
-        {/* Header Action Buttons */}
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-          {/* Manage Categories Button */}
-          <button
-            type="button"
-            onClick={() => setIsCategoryModalOpen(true)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "7px",
-              padding: "9px 16px",
-              borderRadius: "var(--radius-pill, 999px)",
-              border: "1px solid var(--color-border-strong, #C4D9D7)",
-              background: "var(--color-surface, #EFF9F9)",
-              color: "var(--color-text-primary, #062C2F)",
-              fontSize: "13px",
-              fontWeight: 650,
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2H2v10l9.29 9.29c.94.94 2.48.94 3.42 0l6.58-6.58c.94-.94.94-2.48 0-3.42L12 2Z" />
-              <path d="M7 7h.01" />
-            </svg>
-            Categories
-          </button>
-
-          {/* Add Expense Button */}
-          <button
-            type="button"
-            onClick={handleOpenAddModal}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "7px",
-              padding: "9px 20px",
-              borderRadius: "var(--radius-pill, 999px)",
-              border: "none",
-              background: "var(--color-focus, #397F7C)",
-              color: "#FFFFFF",
-              fontSize: "13px",
-              fontWeight: 650,
-              cursor: "pointer",
-              boxShadow: "0 2px 8px rgba(57, 127, 124, 0.35)",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Add Expense
-          </button>
-        </div>
+        {/* Add Expense Button */}
+        <button
+          type="button"
+          onClick={handleOpenAddModal}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "7px",
+            padding: "9px 20px",
+            borderRadius: "var(--radius-pill, 999px)",
+            border: "none",
+            background: "var(--color-focus, #397F7C)",
+            color: "#FFFFFF",
+            fontSize: "13px",
+            fontWeight: 650,
+            cursor: "pointer",
+            boxShadow: "0 2px 8px rgba(57, 127, 124, 0.35)",
+            transition: "all 0.15s ease",
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          Add Expense
+        </button>
       </div>
 
       {/* 1. KPI Cards */}
       <ExpenseKPIs kpis={kpis} activePeriodLabel={activePeriodLabel} isFiltered={hasActiveFilters} />
 
-      {/* 2. Analytics Visualizations Grid */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(12, 1fr)",
-          gap: "16px",
-          marginBottom: "20px",
-        }}
-      >
-        {/* Trend Chart (7 cols on desktop) */}
-        <div style={{ gridColumn: "span 7" }} className="analytics-trend-col">
-          <ExpenseAnalyticsCard
-            title="Spending Progression"
-            subtitle={`${activePeriodLabel} • ${trendData.granularity.toUpperCase()} aggregation`}
-            badge={trendData.totalFormatted}
-          >
-            <ExpenseTrendChart data={trendData} height="280px" />
-          </ExpenseAnalyticsCard>
-        </div>
-
-        {/* Category Distribution Donut Chart (5 cols on desktop) */}
-        <div style={{ gridColumn: "span 5" }} className="analytics-dist-col">
-          <ExpenseAnalyticsCard
-            title="Category Share"
-            subtitle="Breakdown by expense classification"
-            badge={`${categoryDistributionData.categoryCount} Categories`}
-          >
-            <ExpenseCategoryDistributionChart data={categoryDistributionData} height="280px" />
-          </ExpenseAnalyticsCard>
-        </div>
-
-        {/* Category Comparison Ranking (Full 12 cols) */}
-        {categoryComparisonData.items.length > 0 && (
-          <div style={{ gridColumn: "span 12" }}>
-            <ExpenseAnalyticsCard
-              title="Category Spend Ranking"
-              subtitle="Ranked expenditure totals across business categories"
-              badge={`Peak: AED ${categoryComparisonData.maxAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-            >
-              <ExpenseCategoryComparisonChart data={categoryComparisonData} />
-            </ExpenseAnalyticsCard>
-          </div>
-        )}
-      </div>
-
-      {/* 3. Filter Toolbar */}
+      {/* 2. Filter Toolbar */}
       <ExpenseFilterToolbar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -619,15 +620,6 @@ export function ExpenseManagementView() {
         onRenameCategory={handleRenameCategory}
         onDeleteCategory={handleDeleteCategory}
       />
-
-      <style jsx>{`
-        @media (max-width: 980px) {
-          .analytics-trend-col,
-          .analytics-dist-col {
-            grid-column: span 12 !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }

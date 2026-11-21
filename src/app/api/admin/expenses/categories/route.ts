@@ -104,25 +104,18 @@ async function ensureDefaultCategories(): Promise<ExpenseCategoryRecord[]> {
     };
   });
 
-  const existingNames = new Set(existing.map((c) => c.name.trim().toLowerCase()));
-  const missingDefaults: ExpenseCategoryRecord[] = [];
-
-  DEFAULT_CATEGORY_DEFINITIONS.forEach((def) => {
-    if (!existingNames.has(def.name.toLowerCase())) {
-      const now = new Date().toISOString();
-      missingDefaults.push({
+  // Only seed initial default categories if the table is completely empty (first-time initialization)
+  if (rows.length === 0) {
+    const now = new Date().toISOString();
+    for (const def of DEFAULT_CATEGORY_DEFINITIONS) {
+      const cat: ExpenseCategoryRecord = {
         id: def.id,
         name: def.name,
         isDefault: true,
         order: def.order,
         createdAt: now,
         updatedAt: now,
-      });
-    }
-  });
-
-  if (missingDefaults.length > 0) {
-    for (const cat of missingDefaults) {
+      };
       await sql`
         INSERT INTO public.ledger_collections (collection_name, record_id, data, updated_at)
         VALUES (
@@ -466,17 +459,6 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json(
         { error: 'NOT_FOUND', message: 'Expense category not found.' },
         { status: 404 }
-      );
-    }
-
-    // Default categories are permanent system records and cannot be deleted
-    if (target.isDefault) {
-      return NextResponse.json(
-        {
-          error: 'CANNOT_DELETE_DEFAULT_CATEGORY',
-          message: `Category "${target.name}" is a protected system default category and cannot be deleted.`,
-        },
-        { status: 400 }
       );
     }
 
