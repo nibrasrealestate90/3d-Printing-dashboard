@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { initLedger } from "./ledgerCore";
 import {
@@ -10,6 +10,7 @@ import {
   Menu01Icon,
   Moon02Icon,
   Sun03Icon,
+  Logout01Icon,
 } from "./hugeIcons";
 import {
   DashboardSquare01Icon,
@@ -19,6 +20,21 @@ import { useWorkspaceTransition } from "@/components/workspace";
 
 export default function PrintStudioLedger() {
   const { isSwitching, switchToWorkspace } = useWorkspaceTransition();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  async function handleLogout() {
+    setIsLoggingOut(true);
+    try {
+      await fetch("/api/admin/auth/logout", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      });
+    } catch (_) {
+      // Proceed to login regardless of network failure
+    }
+    window.location.href = "/login";
+  }
 
   useEffect(() => {
     const cleanup = initLedger();
@@ -71,6 +87,19 @@ export default function PrintStudioLedger() {
               </div>
               <HugeIcon icon={ArrowRight01Icon} size={13} strokeWidth={2} className="btn-switch-workspace-arrow" />
             </a>
+            <button
+              className="btn-sidebar-logout"
+              id="sidebarLogoutBtn"
+              type="button"
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              title="Sign Out of Session"
+              aria-label="Sign Out"
+            >
+              <HugeIcon icon={Logout01Icon} size={15} strokeWidth={2} />
+              <span>{isLoggingOut ? "Signing out..." : "Log Out"}</span>
+            </button>
+
             <button className="btn-sidebar-collapse" id="collapseSidebarBtn" title="Toggle Sidebar">
               <HugeIcon icon={ArrowLeft01Icon} size={16} strokeWidth={2} />
               <span>Collapse Sidebar</span>
@@ -103,6 +132,19 @@ export default function PrintStudioLedger() {
               <button className="btn-icon" id="themeToggleBtn" title="Toggle Theme">
                 <HugeIcon id="moonIcon" icon={Moon02Icon} size={18} strokeWidth={2} />
                 <HugeIcon id="sunIcon" icon={Sun03Icon} size={18} strokeWidth={2} style={{ display: "none" }} />
+              </button>
+
+              {/* Logout Header Button */}
+              <button
+                className="btn-icon btn-header-logout"
+                id="headerLogoutBtn"
+                type="button"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                title="Log Out"
+                aria-label="Log Out"
+              >
+                <HugeIcon icon={Logout01Icon} size={17} strokeWidth={2} />
               </button>
             </div>
           </header>

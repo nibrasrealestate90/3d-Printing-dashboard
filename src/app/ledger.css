@@ -553,6 +553,63 @@ html.dark .sidebar-logo-img,
   border-color: var(--color-border);
 }
 
+.btn-sidebar-logout {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.btn-sidebar-logout:hover {
+  background: rgba(244, 63, 94, 0.08);
+  color: #F43F5E;
+  border-color: rgba(244, 63, 94, 0.2);
+}
+
+.btn-sidebar-logout:active {
+  transform: scale(0.98);
+}
+
+.btn-sidebar-logout:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-header-logout {
+  color: var(--color-text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.btn-header-logout:hover {
+  background: rgba(244, 63, 94, 0.08) !important;
+  color: #F43F5E !important;
+  border-color: rgba(244, 63, 94, 0.25) !important;
+}
+
+.btn-header-logout:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.app-shell.sidebar-collapsed .btn-sidebar-logout,
+.app-sidebar.collapsed .btn-sidebar-logout,
+.sidebar.collapsed .btn-sidebar-logout {
+  justify-content: center !important;
+  padding: 8px !important;
+}
+
 /* Collapsed Sidebar */
 .app-shell.sidebar-collapsed .brand-title,
 .app-shell.sidebar-collapsed .nav-text,

@@ -48,8 +48,8 @@ console.log("\n[TEST 3] Verifying OPERATIONS group untouched...");
 const opsMatch = ledgerCoreContent.match(/group:\s*"OPERATIONS",\s*items:\s*\[([\s\S]*?)\]/);
 assert(opsMatch, "OPERATIONS NAV_GROUP must be found in ledgerCore.js");
 const opsKeys = [...opsMatch[1].matchAll(/key:\s*"([^"]+)"/g)].map(m => m[1]);
-assert.deepStrictEqual(opsKeys, ["automation-history", "settings"], "OPERATIONS keys must remain unchanged");
-console.log("✓ PASS: Operations navigation items remain intact.");
+assert.deepStrictEqual(opsKeys, ["settings"], "OPERATIONS keys must be settings with Sync History removed");
+console.log("✓ PASS: Operations navigation items updated: Sync History removed, Settings preserved.");
 
 // --- TEST 4: TABS Array Registration ---
 console.log("\n[TEST 4] Verifying TABS array registration...");

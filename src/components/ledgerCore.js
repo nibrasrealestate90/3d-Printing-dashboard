@@ -1078,7 +1078,6 @@ const TABS = [
   ["expenses", "Expenses"],
   ["calc", "Cost Calculator"],
   ["reminders", "Maintenance Reminders"],
-  ["automation-history", "Sync History"],
   ["settings", "Settings"]
 ];
 
@@ -1098,7 +1097,6 @@ const NAV_GROUPS = [
   {
     group: "OPERATIONS",
     items: [
-      { key: "automation-history", label: "Sync History", icon: APP_ICONS.navAutomation },
       { key: "settings", label: "Settings", icon: APP_ICONS.navSettings }
     ]
   }
@@ -1190,9 +1188,13 @@ function render() {
       savedTab = "expenses";
       try { localStorage.setItem("ps_tab", "expenses"); } catch(_) {}
     }
+    if (savedTab === "automation-history") {
+      savedTab = "dashboard";
+      try { localStorage.setItem("ps_tab", "dashboard"); } catch(_) {}
+    }
     const allowedTabs = [
       "dashboard", "products", "prints", "filaments", "expenses", "calc",
-      "reminders", "automation-history", "settings"
+      "reminders", "settings"
     ];
     if (savedTab && (allowedTabs.includes(savedTab) || savedTab === "stock")) {
       tab = savedTab === "stock" ? "expenses" : savedTab;
@@ -1202,6 +1204,9 @@ function render() {
   } catch(_) {}
   if (tab === "stock") {
     tab = "expenses";
+  }
+  if (tab === "automation-history") {
+    tab = "dashboard";
   }
   const st = set_();
   const tabTitles = {

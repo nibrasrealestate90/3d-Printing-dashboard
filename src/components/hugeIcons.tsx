@@ -31,6 +31,7 @@ import {
   Download04Icon,
   Edit01Icon,
   ViewIcon,
+  Logout01Icon,
 } from "@hugeicons/core-free-icons";
 
 export type HugeIconData = readonly (readonly [string, { readonly [key: string]: any }])[];
@@ -145,6 +146,7 @@ export {
   AlertCircleIcon,
   Activity01Icon,
   CheckmarkCircle02Icon,
+  Logout01Icon,
 };
 
 export const APP_ICONS = {
@@ -220,4 +222,6 @@ export const APP_ICONS = {
   btnView: iconFn(ViewIcon, 14, 2),
   btnEdit: iconFn(Edit01Icon, 14, 2),
   btnDelete: iconFn(Delete02Icon, 14, 2),
+  btnLogout: iconFn(Logout01Icon, 15, 2),
+  navLogout: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
 };

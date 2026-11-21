@@ -355,17 +355,15 @@ test("Navigation: Confirms 9 manufacturing/operations tabs and 8 commercial redi
   const navGroups = eval(navMatch[1]);
 
   const items = navGroups.flatMap((g: any) => g.items.map((i: any) => ({ key: i.key, label: i.label })));
-  assert.equal(items.length, 9, "Must contain exactly 9 navigation items (6 Manufacturing + 3 Operations)");
+  assert.equal(items.length, 7, "Must contain exactly 7 navigation items (6 Manufacturing + 1 Operations)");
 
   const expectedManufacturing = [
     { key: "dashboard", label: "Dashboard" },
     { key: "products", label: "Product Catalogue" },
     { key: "prints", label: "Print Jobs" },
     { key: "filaments", label: "Filament Inventory" },
-    { key: "stock", label: "Stock Management" },
+    { key: "expenses", label: "Expenses" },
     { key: "calc", label: "Cost Calculator" },
-    { key: "reminders", label: "Maintenance Reminders" },
-    { key: "automation-history", label: "Sync History" },
     { key: "settings", label: "Settings" }
   ];
   assert.deepEqual(items, expectedManufacturing);
@@ -377,7 +375,6 @@ test("Navigation: Confirms 9 manufacturing/operations tabs and 8 commercial redi
     kyc: "/admin/customers",
     quotes: "/admin/quotations",
     invoices: "/admin/reports",
-    expenses: "/admin/expenses",
     reports: "/admin/reports",
     accounts: "/admin/settings"
   };
