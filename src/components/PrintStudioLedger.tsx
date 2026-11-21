@@ -79,13 +79,13 @@ export default function PrintStudioLedger() {
                 }
               }}
               aria-disabled={isSwitching}
-              title="Switch to Business Management Workspace"
+              title="Switch to Website Management Workspace"
             >
               <div className="btn-switch-workspace-left">
                 <div className="btn-switch-workspace-icon">
                   <HugeIcon icon={DashboardSquare01Icon} size={15} strokeWidth={2} />
                 </div>
-                <span>Switch to Business</span>
+                <span>Switch to Website Management</span>
               </div>
               <HugeIcon icon={ArrowRight01Icon} size={13} strokeWidth={2} className="btn-switch-workspace-arrow" />
             </a>

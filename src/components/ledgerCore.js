@@ -1072,12 +1072,15 @@ function payStatus(i) {
 /* ---------- tabs ---------- */
 const TABS = [
   ["dashboard", "Dashboard"],
-  ["products", "Product Catalogue"],
   ["prints", "Print Jobs"],
+  ["products", "Product Catalogue"],
   ["filaments", "Filament Inventory"],
-  ["expenses", "Expenses"],
   ["calc", "Cost Calculator"],
-  ["reminders", "Maintenance Reminders"],
+  ["orders", "Orders & Fulfillment"],
+  ["enquiries", "Enquiries & Quotes"],
+  ["customers", "Customers"],
+  ["reports", "Financial Reports"],
+  ["expenses", "Expenses"],
   ["settings", "Settings"]
 ];
 
@@ -1087,16 +1090,25 @@ const NAV_GROUPS = [
     group: "MANUFACTURING",
     items: [
       { key: "dashboard", label: "Dashboard", icon: APP_ICONS.navDashboard },
-      { key: "products", label: "Product Catalogue", icon: APP_ICONS.navProducts },
       { key: "prints", label: "Print Jobs", icon: APP_ICONS.navPrints },
+      { key: "products", label: "Product Catalogue", icon: APP_ICONS.navProducts },
       { key: "filaments", label: "Filament Inventory", icon: APP_ICONS.navFilaments },
-      { key: "expenses", label: "Expenses", icon: APP_ICONS.navExpenses },
       { key: "calc", label: "Cost Calculator", icon: APP_ICONS.navCalc }
     ]
   },
   {
-    group: "OPERATIONS",
+    group: "COMMERCE & FULFILLMENT",
     items: [
+      { key: "orders", label: "Orders & Fulfillment", icon: APP_ICONS.navOrders },
+      { key: "enquiries", label: "Enquiries & Quotes", icon: APP_ICONS.navEnquiries },
+      { key: "customers", label: "Customers", icon: APP_ICONS.navCustomers }
+    ]
+  },
+  {
+    group: "FINANCE & OPERATIONS",
+    items: [
+      { key: "reports", label: "Financial Reports", icon: APP_ICONS.navReports },
+      { key: "expenses", label: "Expenses", icon: APP_ICONS.navExpenses },
       { key: "settings", label: "Settings", icon: APP_ICONS.navSettings }
     ]
   }
@@ -1121,6 +1133,14 @@ function drawTabs() {
         if (item.key === "filaments") {
           const count = (S.filament_stock || S.filaments || []).length;
           badge = `<span class="nav-badge">${count}</span>`;
+        }
+        if (item.key === "orders") {
+          const count = (S.orders || []).length;
+          if (count > 0) badge = `<span class="nav-badge">${count}</span>`;
+        }
+        if (item.key === "enquiries") {
+          const count = (S.enquiries || []).length;
+          if (count > 0) badge = `<span class="nav-badge">${count}</span>`;
         }
         return `
           <button role="tab" type="button" class="nav-item ${item.key === tab ? 'active' : ''}" data-tab="${item.key}" aria-selected="${item.key === tab}">
@@ -1193,8 +1213,9 @@ function render() {
       try { localStorage.setItem("ps_tab", "dashboard"); } catch(_) {}
     }
     const allowedTabs = [
-      "dashboard", "products", "prints", "filaments", "expenses", "calc",
-      "reminders", "settings"
+      "dashboard", "prints", "products", "filaments", "calc",
+      "orders", "enquiries", "customers", "reports",
+      "expenses", "reminders", "settings"
     ];
     if (savedTab && (allowedTabs.includes(savedTab) || savedTab === "stock")) {
       tab = savedTab === "stock" ? "expenses" : savedTab;
@@ -1211,43 +1232,44 @@ function render() {
   const st = set_();
   const tabTitles = {
     dashboard: "Dashboard",
-    products: "Product Catalogue",
     prints: "Print Jobs",
+    products: "Product Catalogue",
     filaments: "Filament Inventory",
+    calc: "Cost Calculator",
+    orders: "Orders & Fulfillment",
+    enquiries: "Enquiries & Quotes",
+    customers: "Customers Directory",
+    reports: "Financial Reports",
     expenses: "Expenses",
     stock: "Expenses",
-    calc: "Cost Calculator",
     reminders: "Maintenance Reminders",
     "automation-history": "Sync History",
     settings: "Settings",
-    // Commercial module redirects
-    customers: "Customers",
-    orders: "Orders",
-    kyc: "Customer KYC",
-    quotes: "Quotations",
-    invoices: "Invoices & Payments",
-    reports: "Financial Reports",
-    accounts: "Accounts & Team"
+    // Aliases
+    kyc: "Customers Directory",
+    quotes: "Enquiries & Quotes",
+    invoices: "Financial Reports",
+    accounts: "Settings"
   };
   const tabCrumbs = {
     dashboard: "MANUFACTURING :",
-    products: "MANUFACTURING :",
     prints: "MANUFACTURING :",
+    products: "MANUFACTURING :",
     filaments: "MANUFACTURING :",
-    expenses: "MANUFACTURING :",
-    stock: "MANUFACTURING :",
     calc: "MANUFACTURING :",
+    orders: "COMMERCE & FULFILLMENT :",
+    enquiries: "COMMERCE & FULFILLMENT :",
+    customers: "COMMERCE & FULFILLMENT :",
+    reports: "FINANCE & OPERATIONS :",
+    expenses: "FINANCE & OPERATIONS :",
+    stock: "FINANCE & OPERATIONS :",
     reminders: "OPERATIONS :",
     "automation-history": "OPERATIONS :",
     settings: "OPERATIONS :",
-    // Commercial module crumbs
-    customers: "BUSINESS SUITE :",
-    orders: "BUSINESS SUITE :",
-    kyc: "BUSINESS SUITE :",
-    quotes: "BUSINESS SUITE :",
-    invoices: "BUSINESS SUITE :",
-    reports: "BUSINESS SUITE :",
-    accounts: "BUSINESS SUITE :"
+    kyc: "COMMERCE & FULFILLMENT :",
+    quotes: "COMMERCE & FULFILLMENT :",
+    invoices: "FINANCE & OPERATIONS :",
+    accounts: "OPERATIONS :"
   };
 
   $("#pageTitleText").textContent = tabTitles[tab] || "Dashboard";
@@ -8871,7 +8893,7 @@ try {
     t = "expenses";
     try { localStorage.setItem("ps_tab", "expenses"); } catch(_) {}
   }
-  if (t && ["dashboard", "calc", "products", "filaments", "prints", "expenses", "accounts", "settings"].includes(t)) tab = t;
+  if (t && ["dashboard", "calc", "products", "filaments", "prints", "orders", "enquiries", "customers", "reports", "expenses", "accounts", "settings"].includes(t)) tab = t;
 } catch(_) {}
 
 const resizeCharts = () => {
