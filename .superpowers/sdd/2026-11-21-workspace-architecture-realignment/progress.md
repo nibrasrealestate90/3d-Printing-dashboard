@@ -8,7 +8,7 @@
 - [x] Task 2: Redesign Commercial Overview Page for Website Management (/admin/page.tsx)
 - [x] Task 3: Expand Bambu Production Navigation & Tab Router (ledgerCore.js & PrintStudioLedger.tsx)
 - [x] Task 4: Implement Orders & Fulfillment Tab in Bambu Production App
-- [ ] Task 5: Implement Enquiries & Quotes Tab in Bambu Production App
+- [x] Task 5: Implement Enquiries & Quotes Tab in Bambu Production App
 - [ ] Task 6: Implement Customers Directory Tab in Bambu Production App
 - [ ] Task 7: Implement Financial & Sales Reports Tab in Bambu Production App
 - [ ] Task 8: Full System Verification, URL Redirects & Production Build

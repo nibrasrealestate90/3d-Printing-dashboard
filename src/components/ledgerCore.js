@@ -1309,6 +1309,7 @@ function render() {
   if (tab === "expenses") bindExpenses();
   else unmountExpenses();
   if (tab === "orders") bindOrders();
+  if (tab === "enquiries" || tab === "quotes") bindEnquiries();
 
   if (focusId && document.getElementById(focusId) && /^(q|c)_/.test(focusId)) {
     const el = document.getElementById(focusId);
@@ -4863,64 +4864,315 @@ function vKyc() {
 /* ==========================================================================
    Quotations View (Customers & Sales)
    ========================================================================== */
-function vQuotes() {
-  const quoteRows = [
-    { no: "QT-2026-001", client: "Studio Prototype Hub", items: "Keycap Switch Clicker batch x 50", grams: "1,200g", time: "24h", total: "1,250.00 AED", status: "Approved" },
-    { no: "QT-2026-002", client: "Dubai Architect Model Co.", items: "Facade Elevation Sections", grams: "3,400g", time: "68h", total: "3,800.00 AED", status: "Pending Client" },
-    { no: "QT-2026-003", client: "Robotics Club", items: "Custom Gearbox Casing (PETG)", grams: "450g", time: "8h", total: "490.00 AED", status: "Draft" }
-  ].map(q => `
-    <tr>
-      <td class="mono" style="font-weight:600;">${q.no}</td>
-      <td><strong>${esc(q.client)}</strong></td>
-      <td>${esc(q.items)}</td>
-      <td class="n mono">${q.grams}</td>
-      <td class="n mono">${q.time}</td>
-      <td class="n mono" style="font-weight:700;color:var(--color-brand,#059669);">${q.total}</td>
-      <td><span class="pill ${q.status === 'Approved' ? 'good' : (q.status === 'Draft' ? 'neu' : 'warn')}">${q.status}</span></td>
-      <td style="text-align:right;">
-        <button type="button" class="btn sm" data-tab-link="calc">Recalculate</button>
-      </td>
-    </tr>
-  `);
+/* ==========================================================================
+   Enquiries & Quotes View (Commercial Operations & Quoting)
+   ========================================================================== */
+let enquiryFilter = "ALL";
+let enquirySearch = "";
+let studioEnquiries = [
+  {
+    id: "enq_sample_1",
+    customerName: "Rashid Al-Falasi",
+    customerEmail: "rashid.f@emiratesproto.ae",
+    customerPhone: "+971501234567",
+    subject: "Industrial Drone Motor Casing in PETG-CF",
+    message: "We need 25 units of lightweight motor housing printed in carbon-fiber PETG. Dimensional accuracy must be within 0.15mm. Slicer files are ready.",
+    status: "NEW",
+    createdAt: "2026-11-20T14:30:00Z"
+  },
+  {
+    id: "enq_sample_2",
+    customerName: "Sarah Jenkins",
+    customerEmail: "sarah.j@d3creative.com",
+    customerPhone: "+971529876543",
+    subject: "Architectural Pavilion Scale Model 1:50",
+    message: "Seeking quotation for 1.2m wide parametric pavilion model. Requires matte white PLA with 0.12mm layer resolution. Completion needed in 5 working days.",
+    status: "IN_REVIEW",
+    createdAt: "2026-11-19T09:15:00Z"
+  },
+  {
+    id: "enq_sample_3",
+    customerName: "Tariq Mansoor",
+    customerEmail: "tariq@mansoor-robotics.ae",
+    customerPhone: "+971556789012",
+    subject: "Robotics Gripper Fingers (TPU 95A flexible)",
+    message: "Quote requested for 12 sets of compliant robotic fingers printed in flexible 95A TPU black. Can you advise filament availability?",
+    status: "RESPONDED",
+    createdAt: "2026-11-18T16:45:00Z"
+  }
+];
+let isEnquiriesFetched = false;
+
+async function loadEnquiriesFromApi() {
+  if (isEnquiriesFetched) return;
+  try {
+    const res = await fetch("/api/admin/enquiries", { cache: "no-store" });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.enquiries && Array.isArray(data.enquiries) && data.enquiries.length > 0) {
+        studioEnquiries = data.enquiries;
+      }
+      isEnquiriesFetched = true;
+      render();
+    }
+  } catch (err) {
+    console.warn("loadEnquiriesFromApi error:", err);
+  }
+}
+
+async function updateEnquiryStatus(enquiryId, newStatus) {
+  const item = studioEnquiries.find(e => String(e.id) === String(enquiryId));
+  if (item) {
+    item.status = newStatus;
+  }
+  notify({
+    type: "good",
+    title: "Enquiry Updated",
+    message: `Status updated to ${newStatus.replace('_', ' ')}.`
+  });
+  render();
+
+  try {
+    const res = await fetch(`/api/admin/enquiries/${encodeURIComponent(enquiryId)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: newStatus })
+    });
+    if (!res.ok) console.warn("API update enquiry returned", res.status);
+  } catch (err) {
+    console.warn("Failed to PATCH /api/admin/enquiries:", err);
+  }
+}
+
+function openEnquiryModal(enquiryId) {
+  const e = studioEnquiries.find(item => String(item.id) === String(enquiryId)) || {};
+  const phone = e.customerPhone || "";
+  const cleanDigits = phone.replace(/\D/g, "");
+  const waLink = cleanDigits ? `https://wa.me/${cleanDigits}?text=${encodeURIComponent(`Hello ${e.customerName || 'Customer'}, regarding your 3D print request "${e.subject || 'Enquiry'}":`)}` : "";
+
+  $("#modalRoot").innerHTML = `
+    <div class="scrim" id="scrim">
+      <div class="modal enquiry-detail-modal" style="max-width:580px;width:100%;border-radius:18px;background:var(--color-surface);box-shadow:0 12px 40px rgba(0,0,0,0.18);padding:0;overflow:hidden;border:1px solid var(--color-border);" role="dialog">
+        <div style="padding:18px 24px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;background:var(--color-surface-muted);">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:36px;height:36px;border-radius:10px;background:var(--color-surface);display:flex;align-items:center;justify-content:center;color:var(--color-brand,#059669);">
+              ${APP_ICONS.navEnquiries}
+            </div>
+            <div>
+              <h3 style="margin:0;font-size:16px;font-weight:700;">Customer Enquiry</h3>
+              <p class="muted" style="margin:0;font-size:12px;">Received ${e.createdAt ? formatDateShort(e.createdAt) : "Recent"}</p>
+            </div>
+          </div>
+          <button type="button" class="modal-close-x" id="modalCloseX" aria-label="Close dialog" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--color-text-secondary);">✕</button>
+        </div>
+
+        <div style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;">
+          <div style="padding:14px;border-radius:12px;background:var(--color-surface-muted);border:1px solid var(--color-border);">
+            <div style="font-size:14px;font-weight:700;color:var(--color-text-primary);">${esc(e.customerName || 'Customer')}</div>
+            <div class="muted" style="font-size:12px;margin-top:2px;">Email: <span>${esc(e.customerEmail || '—')}</span></div>
+            ${phone ? `<div class="muted" style="font-size:12px;margin-top:2px;">Phone: <span class="mono">${esc(phone)}</span></div>` : ''}
+          </div>
+
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;margin-bottom:6px;">Subject</div>
+            <div style="font-size:14px;font-weight:600;color:var(--color-text-primary);">${esc(e.subject || 'Print Request')}</div>
+          </div>
+
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--color-text-secondary);text-transform:uppercase;margin-bottom:6px;">Client Message & Specifications</div>
+            <div style="font-size:13px;line-height:1.6;color:var(--color-text-primary);padding:12px 14px;border-radius:10px;background:var(--color-surface-muted);white-space:pre-wrap;">${esc(e.message || 'No description provided.')}</div>
+          </div>
+
+          <div style="display:flex;gap:10px;align-items:center;justify-content:space-between;padding-top:8px;">
+            <div>
+              <span class="muted" style="font-size:12px;">Status: </span>
+              <span class="pill ${e.status === 'NEW' ? 'bad' : (e.status === 'IN_REVIEW' ? 'warn' : 'good')}">${esc(e.status || 'NEW')}</span>
+            </div>
+            <div style="display:flex;gap:8px;">
+              ${waLink ? `
+                <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="btn sm" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;background:#25D366;color:#ffffff;border:none;font-weight:600;">
+                  WhatsApp
+                </a>
+              ` : ''}
+              <button type="button" class="btn sm pri" id="btnLaunchCalc">Quote in Calculator →</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:14px 24px;border-top:1px solid var(--color-border);display:flex;justify-content:flex-end;gap:10px;background:var(--color-surface-muted);">
+          <button type="button" class="btn sm" id="modalCloseBtn">Close</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const closeFn = () => { $("#modalRoot").innerHTML = ""; };
+  const closeX = $("#modalCloseX");
+  const closeBtn = $("#modalCloseBtn");
+  const scrim = $("#scrim");
+  const calcBtn = $("#btnLaunchCalc");
+  if (closeX) closeX.addEventListener("click", closeFn);
+  if (closeBtn) closeBtn.addEventListener("click", closeFn);
+  if (scrim) scrim.addEventListener("click", e => { if (e.target === scrim) closeFn(); });
+  if (calcBtn) calcBtn.addEventListener("click", () => { closeFn(); tab = "calc"; render(); });
+}
+
+function bindEnquiries() {
+  if (!isEnquiriesFetched) {
+    loadEnquiriesFromApi();
+  }
+
+  const searchInp = $("#enquirySearchInput");
+  if (searchInp) {
+    searchInp.addEventListener("input", e => {
+      enquirySearch = e.target.value.toLowerCase().trim();
+      render();
+    });
+  }
+
+  $$(".enquiry-filter-pill").forEach(btn => {
+    btn.addEventListener("click", () => {
+      enquiryFilter = btn.dataset.filter;
+      render();
+    });
+  });
+
+  $$(".select-enquiry-status").forEach(sel => {
+    sel.addEventListener("change", async () => {
+      const enquiryId = sel.dataset.enquiryId;
+      const newStatus = sel.value;
+      await updateEnquiryStatus(enquiryId, newStatus);
+    });
+  });
+
+  $$(".btn-view-enquiry-modal").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const enquiryId = btn.dataset.enquiryId;
+      openEnquiryModal(enquiryId);
+    });
+  });
+}
+
+function vEnquiries() {
+  const allList = studioEnquiries || [];
+  const newCount = allList.filter(e => e.status === "NEW").length;
+  const inReviewCount = allList.filter(e => e.status === "IN_REVIEW").length;
+  const respondedCount = allList.filter(e => e.status === "RESPONDED").length;
+  const totalCount = allList.length;
+
+  const filtered = allList.filter(e => {
+    if (enquiryFilter === "NEW" && e.status !== "NEW") return false;
+    if (enquiryFilter === "IN_REVIEW" && e.status !== "IN_REVIEW") return false;
+    if (enquiryFilter === "RESPONDED" && e.status !== "RESPONDED") return false;
+    if (enquiryFilter === "ARCHIVED" && e.status !== "ARCHIVED") return false;
+
+    if (enquirySearch) {
+      const q = enquirySearch.toLowerCase();
+      const name = String(e.customerName || "").toLowerCase();
+      const email = String(e.customerEmail || "").toLowerCase();
+      const phone = String(e.customerPhone || "").toLowerCase();
+      const subj = String(e.subject || "").toLowerCase();
+      const msg = String(e.message || "").toLowerCase();
+      if (!name.includes(q) && !email.includes(q) && !phone.includes(q) && !subj.includes(q) && !msg.includes(q)) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const rows = filtered.map(e => {
+    const phone = e.customerPhone || "";
+    const cleanDigits = phone.replace(/\D/g, "");
+    const waLink = cleanDigits ? `https://wa.me/${cleanDigits}?text=${encodeURIComponent(`Hello ${e.customerName || 'Customer'}, regarding your 3D print request: "${e.subject || 'Enquiry'}":`)}` : "";
+    const dateStr = e.createdAt ? formatDateShort(e.createdAt) : "Recent";
+
+    return `
+      <tr>
+        <td>
+          <div style="font-weight:600;font-size:13.5px;">${esc(e.customerName || 'Customer')}</div>
+          <div class="muted mono" style="font-size:11px;">${esc(e.customerEmail || '—')}</div>
+        </td>
+        <td>
+          <div style="font-weight:600;font-size:13px;">${esc(e.subject || 'Print Request')}</div>
+          <div class="muted" style="font-size:11.5px;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${esc(e.message || '')}">
+            ${esc(e.message || '')}
+          </div>
+        </td>
+        <td>${dateStr}</td>
+        <td>
+          <select class="inp select-enquiry-status" data-enquiry-id="${esc(e.id)}" style="padding:4px 8px;font-size:12px;font-weight:600;border-radius:6px;width:auto;cursor:pointer;background:var(--color-surface);">
+            <option value="NEW" ${e.status === 'NEW' ? 'selected' : ''}>New</option>
+            <option value="IN_REVIEW" ${e.status === 'IN_REVIEW' ? 'selected' : ''}>In Review</option>
+            <option value="RESPONDED" ${e.status === 'RESPONDED' ? 'selected' : ''}>Responded</option>
+            <option value="ARCHIVED" ${e.status === 'ARCHIVED' ? 'selected' : ''}>Archived</option>
+          </select>
+        </td>
+        <td style="text-align:right;">
+          <div style="display:inline-flex;gap:6px;align-items:center;">
+            ${waLink ? `
+              <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="btn sm" style="text-decoration:none;display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#ffffff;border:none;font-weight:600;padding:4px 10px;border-radius:6px;">
+                WhatsApp
+              </a>
+            ` : ''}
+            <button type="button" class="btn sm btn-view-enquiry-modal" data-enquiry-id="${esc(e.id)}" title="View Message Details">View</button>
+            <button type="button" class="btn sm" data-tab-link="calc" title="Estimate Custom CAD Quote in Calculator">Quote →</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
 
   return `
-    <div class="module-page-wrapper quotes-page-wrapper">
+    <div class="module-page-wrapper enquiries-page-wrapper">
       <div class="kpis" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
         <div class="metric-card">
           <div class="metric-top">
-            <span class="metric-label">PIPELINE QUOTES</span>
-            <div class="metric-icon-wrap">${APP_ICONS.navQuotes}</div>
+            <span class="metric-label">NEW REQUESTS</span>
+            <div class="metric-icon-wrap">${APP_ICONS.navEnquiries}</div>
           </div>
-          <div class="metric-value">3 <span style="font-size:16px;font-weight:500;">active</span></div>
-          <div class="metric-sub">Total pipeline value: AED 5,540.00</div>
+          <div class="metric-value" style="color:var(--color-warn,#f59e0b);">${newCount} <span style="font-size:16px;font-weight:500;">new</span></div>
+          <div class="metric-sub">Unreviewed client custom print requests</div>
         </div>
         <div class="metric-card">
           <div class="metric-top">
-            <span class="metric-label">QUOTE CONVERSION RATE</span>
-            <div class="metric-icon-wrap">${APP_ICONS.metricProfit(18, 2)}</div>
-          </div>
-          <div class="metric-value" style="color:var(--color-brand,#059669);">78%</div>
-          <div class="metric-sub">Quotes successfully converted to invoices</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-top">
-            <span class="metric-label">ESTIMATOR HOOK</span>
+            <span class="metric-label">IN REVIEW</span>
             <div class="metric-icon-wrap">${APP_ICONS.navCalc}</div>
           </div>
-          <div class="metric-value">Automated</div>
-          <div class="metric-sub">Integrated with Slicer Cost Calculator</div>
+          <div class="metric-value" style="color:var(--color-accent,#0284c7);">${inReviewCount} <span style="font-size:16px;font-weight:500;">evaluating</span></div>
+          <div class="metric-sub">Model CAD slicing & estimation in progress</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-top">
+            <span class="metric-label">RESPONDED</span>
+            <div class="metric-icon-wrap">${APP_ICONS.checkSuccess(18, 2)}</div>
+          </div>
+          <div class="metric-value" style="color:var(--color-brand,#059669);">${respondedCount} <span style="font-size:16px;font-weight:500;">quoted</span></div>
+          <div class="metric-sub">Official quotations sent via WhatsApp / Email</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-top">
+            <span class="metric-label">TOTAL ENQUIRIES</span>
+            <div class="metric-icon-wrap">${APP_ICONS.navQuotes}</div>
+          </div>
+          <div class="metric-value">${totalCount} <span style="font-size:16px;font-weight:500;">total</span></div>
+          <div class="metric-sub">Lifetime custom studio lead volume</div>
         </div>
       </div>
 
-      <div class="card" style="padding:16px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:14px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <h3 style="margin:0;font-size:15px;font-weight:700;">Quotations & Job Cost Proposals</h3>
-          <div style="display:flex;gap:8px;">
-            <button type="button" class="btn sm" data-tab-link="calc">Cost Calculator →</button>
-            <button type="button" class="btn sm pri btn-pill-primary" data-new="invoices" data-type="quote">+ New Quotation</button>
+      <div class="card" style="padding:16px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:14px;margin-bottom:16px;">
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div style="display:flex;gap:8px;align-items:center;flex:1;min-width:280px;max-width:480px;">
+            <input type="search" id="enquirySearchInput" class="inp" placeholder="Search enquiries by client, email, phone, subject..." value="${esc(enquirySearch)}" style="width:100%;">
+          </div>
+          <div class="segmented-control" role="group" aria-label="Enquiry Filter" style="display:flex;gap:4px;">
+            <button type="button" class="segment-btn enquiry-filter-pill ${enquiryFilter === 'ALL' ? 'active' : ''}" data-filter="ALL">All (${totalCount})</button>
+            <button type="button" class="segment-btn enquiry-filter-pill ${enquiryFilter === 'NEW' ? 'active' : ''}" data-filter="NEW">New (${newCount})</button>
+            <button type="button" class="segment-btn enquiry-filter-pill ${enquiryFilter === 'IN_REVIEW' ? 'active' : ''}" data-filter="IN_REVIEW">In Review (${inReviewCount})</button>
+            <button type="button" class="segment-btn enquiry-filter-pill ${enquiryFilter === 'RESPONDED' ? 'active' : ''}" data-filter="RESPONDED">Responded (${respondedCount})</button>
+            <button type="button" class="segment-btn enquiry-filter-pill ${enquiryFilter === 'ARCHIVED' ? 'active' : ''}" data-filter="ARCHIVED">Archived</button>
           </div>
         </div>
-        ${table(["Quote #", "Client", "Scope of Work", "#Weight", "#Duration", "#Proposal (AED)", "Status", ""], quoteRows, "No quotations drafted.")}
+        ${table(["Customer", "Enquiry Subject & Scope", "Date", "Status", ""], rows, "No enquiries matching current filter.")}
       </div>
     </div>
   `;
