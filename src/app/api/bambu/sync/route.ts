@@ -99,7 +99,8 @@ function formatFilaments(amsDetailMapping?: any[]): Array<{ type: string; color?
       const hex = color.length >= 6 ? color.slice(0, 6) : color;
       color = `#${hex}`;
     }
-    const weightG = Number(m.weight) > 0 ? Number(Number(m.weight).toFixed(1)) : undefined;
+    // Bambu Handy formatting: ceil each slot to whole grams matching Bambu Handy app
+    const weightG = Number(m.weight) > 0 ? Math.ceil(Number(m.weight)) : undefined;
     const type = m.targetFilamentType || m.filamentType || 'PLA';
 
     return {
@@ -438,7 +439,9 @@ export async function handleSync(req?: NextRequest) {
       statusLabel = 'Failed';
     }
 
-    const grams = Number(Number(task.weight || 0).toFixed(1));
+    const taskFilaments = formatFilaments(task.amsDetailMapping);
+    const slotGramsSum = taskFilaments.reduce((sum, f) => sum + (f.weightG || 0), 0);
+    const grams = slotGramsSum > 0 ? slotGramsSum : Math.ceil(Number(task.weight || 0));
     const { hours } = calculatePrintHours(task, statusLabel);
     const existing = existingPrintsMap.get(recordId);
 
@@ -446,7 +449,7 @@ export async function handleSync(req?: NextRequest) {
     if (!existing) return true;
     if (existing.status !== statusLabel.toLowerCase()) return true;
     if (statusLabel === 'Printing') return true;
-    if (Math.abs(existing.grams - grams) >= 0.1) return true;
+    if (Math.abs(existing.grams - grams) >= 0.5) return true;
     if (Math.abs(existing.hours - hours) >= 0.05) return true;
 
     return false;
@@ -498,7 +501,9 @@ export async function handleSync(req?: NextRequest) {
     if (task.cover) {
       photoDataUrl = await downloadImageAsBase64(task.cover);
     }
-    const grams = Number(Number(task.weight || 0).toFixed(1));
+    const taskFilaments = formatFilaments(task.amsDetailMapping);
+    const slotGramsSum = taskFilaments.reduce((sum, f) => sum + (f.weightG || 0), 0);
+    const grams = slotGramsSum > 0 ? slotGramsSum : Math.ceil(Number(task.weight || 0));
     const prodGrams = grams > 0 ? grams : 50;
     const minutes = Math.round((task.costTime || 0) / 60) || 60;
     const filamentCost = Number(((prodGrams / 1000) * 85).toFixed(2));
@@ -570,11 +575,11 @@ export async function handleSync(req?: NextRequest) {
       }
 
       const dateStr = (task.startTime || task.endTime || new Date().toISOString()).slice(0, 10);
-      const grams = Number(Number(task.weight || 0).toFixed(1));
+      const filamentsUsed = formatFilaments(task.amsDetailMapping);
+      const slotGramsSum = filamentsUsed.reduce((sum, f) => sum + (f.weightG || 0), 0);
+      const grams = slotGramsSum > 0 ? slotGramsSum : Math.ceil(Number(task.weight || 0));
       const { hours, estimatedHours } = calculatePrintHours(task, statusLabel);
       const note = task.title || task.designTitle || (isSuccess ? 'Completed' : (statusLabel === 'Printing' ? 'Printing' : 'Failed / Cancelled'));
-
-      const filamentsUsed = formatFilaments(task.amsDetailMapping);
       const buildPlate = formatBedType(task.bedType);
       const nozzle = formatNozzle(task.nozzleInfos, task.nozzleDiameter);
       const printerName = task.deviceName && task.deviceModel

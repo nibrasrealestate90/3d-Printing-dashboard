@@ -2898,7 +2898,7 @@ function formatPrintDuration(mins) {
 function formatWeight(grams) {
   const g = N(grams);
   if (!g || g <= 0) return "—";
-  return `${m1(g).replace(/\.0$/, "")}g`;
+  return `${Math.ceil(g)}g`;
 }
 
 function getProductAggregations(products, prints) {
@@ -3851,11 +3851,12 @@ function vPrints() {
         const mat = esc(fu.type || "PLA");
         const slot = fu.slot ? esc(fu.slot) : (isPrinting ? `A${idx + 1}` : "");
         let details = "";
+        const wG = fu.weightG != null && fu.weightG > 0 ? Math.ceil(N(fu.weightG)) : null;
         if (isPrinting) {
           details = slot ? ` • ${slot}` : "";
-          if (fu.weightG != null && fu.weightG > 0) details += ` (${m1(fu.weightG)}g)`;
+          if (wG != null) details += ` (${wG}g)`;
         } else {
-          details = (fu.weightG != null ? ` · ${m1(fu.weightG)}g` : "") + (slot ? ` <span class="print-slot-tag">${slot}</span>` : "");
+          details = (wG != null ? ` · ${wG}g` : "") + (slot ? ` <span class="print-slot-tag">${slot}</span>` : "");
         }
         return `
           <div class="print-fil-pill">
@@ -3865,7 +3866,8 @@ function vPrints() {
         `;
       }).join("") + `</div>`;
     } else if (f) {
-      const slotTag = isPrinting ? ` • ${esc(f.location || "A1")}` : (p.grams ? ` · ${m1(p.grams)}g` : "");
+      const wG = p.grams ? Math.ceil(N(p.grams)) : null;
+      const slotTag = isPrinting ? ` • ${esc(f.location || "A1")}` : (wG ? ` · ${wG}g` : "");
       filHtml = `
         <div class="print-fil-pill">
           <span class="swatch" style="background:${safeColor(f.color)};"></span>
@@ -3892,6 +3894,10 @@ function vPrints() {
     } else {
       filHtml = `<span class="muted">—</span>`;
     }
+
+    const rowGrams = (p.filamentsUsed && p.filamentsUsed.length > 0 && p.filamentsUsed.some(fu => N(fu.weightG) > 0))
+      ? p.filamentsUsed.reduce((sum, fu) => sum + (Math.ceil(N(fu.weightG)) || 0), 0)
+      : Math.ceil(N(p.grams));
 
     return `
       <tr class="print-table-row clickable-row" data-print-row-id="${p.id}">
@@ -3924,7 +3930,7 @@ function vPrints() {
           </div>
         </td>
         <td class="n">
-          <span class="num">${m1(p.grams)} g</span>
+          <span class="num">${rowGrams} g</span>
         </td>
         <td class="n">
           <span class="num"${p.estimatedHours && Math.abs(N(p.hours) - N(p.estimatedHours)) >= 0.5 ? ` title="Actual: ${m1(N(p.hours))} h (Slicer estimate: ${p.estimatedHours} h)"` : ""}>${m1(N(p.hours))} h</span>
@@ -6548,6 +6554,11 @@ function openPrintDetailsModal(p) {
     }];
   }
 
+  // Bambu Handy whole-integer formatting: ceiling to match Bambu Handy app
+  const totalBambuGrams = (filaments && filaments.length > 0 && filaments.some(f => N(f.weightG) > 0))
+    ? filaments.reduce((sum, f) => sum + (Math.ceil(N(f.weightG)) || 0), 0)
+    : Math.ceil(N(p.grams));
+
   const html = `
     <div class="scrim" id="printDetailsScrim">
       <div class="bambu-details-modal" role="dialog" aria-modal="true" aria-labelledby="printModalTitle">
@@ -6571,7 +6582,7 @@ function openPrintDetailsModal(p) {
               ${pr.sku ? `<div class="bambu-hero-sku mono">${esc(pr.sku)}</div>` : ""}
               <div class="bambu-hero-tags">
                 <span class="bambu-tag"${p.estimatedHours && Math.abs(N(p.hours) - N(p.estimatedHours)) >= 0.5 ? ` title="Actual elapsed: ${durationText} (Slicer estimate: ${p.estimatedHours} h)"` : ""}>${APP_ICONS.metricTime(13, 2)} <span>${durationText}</span></span>
-                <span class="bambu-tag">${APP_ICONS.feedSpool(13, 2)} <span>${m1(p.grams)} g</span></span>
+                <span class="bambu-tag">${APP_ICONS.feedSpool(13, 2)} <span>${totalBambuGrams} g</span></span>
                 <span class="bambu-tag">${APP_ICONS.feedPrint(13, 2)} <span>${p.statusLabel === "Printing" ? "Printing active" : (p.qty ? `${p.qty} printed` : `${p.failed || 1} failed`)}</span></span>
               </div>
             </div>
@@ -6620,7 +6631,7 @@ function openPrintDetailsModal(p) {
                     ${fu.color ? `<span class="bambu-hex-tag mono">${esc(fu.color)}</span>` : ""}
                   </div>
                   <div class="bambu-ams-right">
-                    <span class="bambu-ams-weight num">${fu.weightG != null && fu.weightG > 0 ? `${m1(fu.weightG)} g` : (isPrinting ? "Planned" : "—")}</span>
+                    <span class="bambu-ams-weight num">${fu.weightG != null && fu.weightG > 0 ? `${Math.ceil(N(fu.weightG))} g` : (isPrinting ? "Planned" : "—")}</span>
                   </div>
                 </div>
               `).join("")}
